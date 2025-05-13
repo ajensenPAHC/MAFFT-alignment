@@ -14,6 +14,11 @@ import os
 st.set_page_config(page_title="Amino Acid Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
 
+log_messages = []
+def log(msg):
+    log_messages.append(msg)
+    st.info(msg)
+
 uploaded_excel = st.file_uploader("Upload Excel Spreadsheet (.xlsx)", type=["xlsx"])
 uploaded_gene_db = st.file_uploader("Upload Gene Type Database (.csv) (Optional)", type=["csv"])
 ref_seq = None
@@ -75,6 +80,7 @@ if uploaded_excel:
         st.stop()
 
     if st.button("Submit Sequences for Alignment"):
+        log("Preparing sequences for alignment...")
         all_seqs = [ref_seq] + [s for s in sequences if s.id != ref_seq.id]
 
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
@@ -92,7 +98,7 @@ if uploaded_excel:
         # Submit to Clustal Omega
         try:
             with open(fasta_path, 'rb') as f:
-                st.info("Submitting alignment job to Clustal Omega Web API...")
+                log("Submitting alignment job to Clustal Omega Web API...")
                 response = requests.post(
                     'https://www.ebi.ac.uk/Tools/services/rest/clustalo/run',
                     data={'email': 'your.email@example.com', 'stype': 'protein'},
@@ -116,10 +122,12 @@ if uploaded_excel:
                 time.sleep(5)
                 waited += 5
 
+        log("Fetching alignment result...")
         aln = requests.get(f'https://www.ebi.ac.uk/Tools/services/rest/clustalo/result/{job_id}/aln-fasta').text
 
         if not aln.strip().startswith(">"):
             st.error("Clustal Omega returned an empty or invalid alignment. Try fewer sequences or check format.")
+            st.text(aln)
             st.stop()
 
         with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".fasta") as aligned_file:
@@ -188,3 +196,8 @@ if uploaded_excel:
             st.subheader("Gene Type Analysis Table")
             st.dataframe(aa_table)
             st.download_button("Download Results as CSV", aa_table.to_csv(index=False), file_name="results.csv")
+
+    if log_messages:
+        st.sidebar.title("📝 App Log")
+        for m in log_messages:
+            st.sidebar.write(m)
