@@ -103,7 +103,7 @@ if uploaded_excel:
                 log("Submitting alignment job to Clustal Omega Web API...")
                 response = requests.post(
                     'https://www.ebi.ac.uk/Tools/services/rest/clustalo/run',
-                    data={'email': 'your.email@example.com', 'stype': 'protein'},
+                    data={'email': 'your.email@example.com', 'stype': 'protein', 'guidetreeout': 'true'},
                     files={'sequence': f}
                 )
                 job_id = response.text.strip()
@@ -175,9 +175,41 @@ if uploaded_excel:
 
         session["aligned_fasta"] = aln
         session["ref_id"] = ref_seq.id
-        st.success("Alignment complete!")
+        st.success("Alignment complete! Proceed to Step 5 for comparisons.")
 
-    if log_messages:
-        st.sidebar.title("📝 App Log")
-        for m in log_messages:
-            st.sidebar.write(m)
+        # Step 5: Pairwise Comparisons
+        st.header("Step 5: Pairwise Identity and Amino Acid Comparison")
+        aligned_sequences = {}
+        lines = aln.strip().split("\n")
+        for line in lines:
+            if line.startswith("CLUSTAL") or line.strip() == "" or line.startswith(" "):
+                continue
+            parts = line.strip().split()
+            if len(parts) == 2:
+                name, seq = parts
+                aligned_sequences.setdefault(name, "")
+                aligned_sequences[name] += seq
+
+        if session["ref_id"] not in aligned_sequences:
+            st.error("Reference sequence not found in alignment.")
+            st.stop()
+
+        ref_aligned = aligned_sequences[session["ref_id"]]
+        result_table = []
+        for name, seq in aligned_sequences.items():
+            if name == session["ref_id"]:
+                continue
+            matches = sum(1 for a, b in zip(ref_aligned, seq) if a == b and a != '-')
+            total = sum(1 for a in zip(ref_aligned, seq) if a[0] != '-')
+            identity = round(100 * matches / total, 2) if total > 0 else 0.0
+            result_table.append({"Sample": name, "Identity %": identity})
+
+        result_df = pd.DataFrame(result_table)
+        st.dataframe(result_df)
+        csv = result_df.to_csv(index=False).encode('utf-8')
+        st.download_button("Download Comparison Results", csv, "comparison_results.csv", "text/csv")
+
+if log_messages:
+    st.sidebar.title("📝 App Log")
+    for m in log_messages:
+        st.sidebar.write(m)
