@@ -10,6 +10,7 @@ from matplotlib import cm
 from matplotlib import pyplot as plt
 import re
 import os
+import base64
 
 st.set_page_config(page_title="Amino Acid Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
@@ -95,7 +96,6 @@ if uploaded_excel:
         with open(fasta_path, "rb") as download:
             st.download_button("Download FASTA Sequence File", download, file_name="sequences.fasta")
 
-        # Submit to Clustal Omega
         try:
             with open(fasta_path, 'rb') as f:
                 log("Submitting alignment job to Clustal Omega Web API...")
@@ -126,7 +126,7 @@ if uploaded_excel:
         result_formats = requests.get(f'https://www.ebi.ac.uk/Tools/services/rest/clustalo/resulttypes/{job_id}').text
         st.text("Result formats available:\n" + result_formats)
 
-        aln = requests.get(f'https://www.ebi.ac.uk/Tools/services/rest/clustalo/result/{job_id}/aln-clustalw').text
+        aln = requests.get(f'https://www.ebi.ac.uk/Tools/services/rest/clustalo/result/{job_id}/aln-clustal_num').text
 
         if not aln.strip().startswith("CLUSTAL"):
             st.error("Clustal Omega returned an empty or invalid alignment. Try fewer sequences or check format.")
@@ -141,6 +141,38 @@ if uploaded_excel:
         st.code(aln, language="text")
 
         st.download_button("Download Alignment (CLUSTAL Format)", aln, file_name="alignment.aln")
+
+        st.subheader("Interactive Alignment Viewer")
+        msa_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset='utf-8'>
+          <script src='https://cdn.jsdelivr.net/npm/msa@latest/dist/msa.js'></script>
+        </head>
+        <body>
+        <div id='msa-div'></div>
+        <script>
+        const msa = require('msa');
+        const opts = {{ el: document.getElementById('msa-div'), vis: {{ conserv: false }} }};
+        const m = msa(opts);
+        m.seqs.addFromClustal(`{aln}`);
+        m.render();
+        </script>
+        </body>
+        </html>
+        """
+        with open("msa_viewer.html", "w") as f:
+            f.write(msa_html)
+        st.components.v1.iframe("msa_viewer.html", height=450)
+
+        fig, ax = plt.subplots(figsize=(10, len(aln.splitlines())/3))
+        ax.text(0, 0.5, aln, family='monospace', fontsize=10)
+        ax.axis('off')
+        png_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        fig.savefig(png_file.name, bbox_inches='tight')
+        with open(png_file.name, "rb") as f:
+            st.download_button("Download Alignment Image (PNG)", f, file_name="alignment.png")
 
         session["aligned_fasta"] = aln
         session["ref_id"] = ref_seq.id
