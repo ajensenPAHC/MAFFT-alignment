@@ -30,6 +30,7 @@ if uploaded_excel:
     df = pd.read_excel(xls, sheet_name=tab_name)
     df = df.astype(str)
     st.subheader("Preview of Selected Sheet")
+    df.index = df.index + 2
     st.dataframe(df.head().style.set_properties(**{'text-align': 'left'}))
 
     name_columns = st.multiselect("Select column(s) to use for naming sequences:", df.columns)
@@ -38,12 +39,12 @@ if uploaded_excel:
     row_mode = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
     if row_mode == "Range":
         row_range = st.slider("Select row range to process (starting from row 2):", 2, len(df)+1, (2, len(df)+1))
-        df = df.iloc[row_range[0]-2:row_range[1]-1]
+        df = df.loc[row_range[0]:row_range[1]]
     else:
         row_indices_input = st.text_input("Enter comma-separated row indices (e.g., 2,4,6):", "2,3")
         try:
-            indices = [int(i.strip()) - 2 for i in row_indices_input.split(",") if i.strip().isdigit()]
-            df = df.iloc[indices]
+            indices = [int(i.strip()) for i in row_indices_input.split(",") if i.strip().isdigit()]
+            df = df.loc[indices]
         except Exception as e:
             st.error(f"Invalid row indices: {e}")
             st.stop()
@@ -63,10 +64,9 @@ if uploaded_excel:
 
     ref_option = st.radio("How do you want to provide the reference sequence?", ["Select from Excel", "Upload FASTA File"])
     if ref_option == "Select from Excel":
-        ref_display_indices = [i + 2 for i in df.index]
+        ref_display_indices = df.index.tolist()
         ref_selection = st.selectbox("Select the row number of the reference sequence:", ref_display_indices)
-        ref_index = ref_selection - 2
-        ref_row = df.loc[ref_index]
+        ref_row = df.loc[ref_selection]
         ref_name = "_".join([ref_row[col].strip().replace(" ", "_") for col in name_columns if pd.notna(ref_row[col])])
         ref_seq_text = ref_row[seq_column].strip().replace(" ", "")
         ref_seq = SeqRecord(Seq(ref_seq_text), id=ref_name, description="")
@@ -101,7 +101,7 @@ if uploaded_excel:
                 log("Submitting alignment job to Clustal Omega Web API...")
                 response = requests.post(
                     'https://www.ebi.ac.uk/Tools/services/rest/clustalo/run',
-                    data={'email': 'your.email@example.com', 'stype': 'protein'},
+                    data={'email': 'your.email@example.com', 'stype': 'protein', 'output': 'aln-fasta'},
                     files={'sequence': f}
                 )
                 job_id = response.text.strip()
