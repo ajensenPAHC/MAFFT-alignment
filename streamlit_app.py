@@ -32,7 +32,9 @@ if uploaded_excel:
     df = df.astype(str)
     df.index = df.index + 2
     st.subheader("Preview of Selected Sheet")
-    st.dataframe(df.head().style.set_properties(**{'text-align': 'left'}))
+    df_display = df.copy()
+    df_display.index.name = "Row Number"
+    st.dataframe(df_display.head().style.set_properties(**{'text-align': 'left'}))
 
     name_columns = st.multiselect("Select column(s) to use for naming sequences:", df.columns)
     seq_column = st.selectbox("Select the column containing amino acid sequences:", df.columns)
@@ -123,9 +125,6 @@ if uploaded_excel:
                 waited += 5
 
         log("Fetching alignment result...")
-        result_formats = requests.get(f'https://www.ebi.ac.uk/Tools/services/rest/clustalo/resulttypes/{job_id}').text
-        st.text("Result formats available:\n" + result_formats)
-
         aln = requests.get(f'https://www.ebi.ac.uk/Tools/services/rest/clustalo/result/{job_id}/aln-clustal_num').text
 
         if not aln.strip().startswith("CLUSTAL"):
