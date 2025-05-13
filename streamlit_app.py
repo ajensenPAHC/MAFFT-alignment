@@ -33,7 +33,8 @@ if uploaded_excel:
     df.index = df.index + 2
     st.subheader("Preview of Selected Sheet")
     df_display = df.copy()
-    df_display.index.name = "Row Number"
+    df_display.index = df_display.index.astype(str)
+    df_display.index.name = "Excel Row #"
     st.dataframe(df_display.head().style.set_properties(**{'text-align': 'left'}))
 
     name_columns = st.multiselect("Select column(s) to use for naming sequences:", df.columns)
@@ -190,14 +191,23 @@ if uploaded_excel:
                 aligned_sequences.setdefault(name, "")
                 aligned_sequences[name] += seq
 
-        if session["ref_id"] not in aligned_sequences:
-            st.error("Reference sequence not found in alignment.")
+        # Fuzzy match for reference ID
+        ref_id = session["ref_id"]
+        ref_match = None
+        for aln_id in aligned_sequences:
+            if ref_id == aln_id:
+                ref_match = aln_id
+                break
+            if ref_id in aln_id or aln_id in ref_id:
+                ref_match = aln_id
+        if not ref_match:
+            st.error(f"Reference sequence not found in alignment. Tried matching '{ref_id}' to {list(aligned_sequences.keys())}")
             st.stop()
 
-        ref_aligned = aligned_sequences[session["ref_id"]]
+        ref_aligned = aligned_sequences[ref_match]
         result_table = []
         for name, seq in aligned_sequences.items():
-            if name == session["ref_id"]:
+            if name == ref_match:
                 continue
             matches = sum(1 for a, b in zip(ref_aligned, seq) if a == b and a != '-')
             total = sum(1 for a in zip(ref_aligned, seq) if a[0] != '-')
