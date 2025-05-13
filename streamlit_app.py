@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 import re
 import os
 import base64
+import difflib
 
 st.set_page_config(page_title="Amino Acid Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
@@ -178,7 +179,6 @@ if uploaded_excel:
         session["ref_id"] = ref_seq.id
         st.success("Alignment complete! Proceed to Step 5 for comparisons.")
 
-        # Step 5: Pairwise Comparisons
         st.header("Step 5: Pairwise Identity and Amino Acid Comparison")
         aligned_sequences = {}
         lines = aln.strip().split("\n")
@@ -193,17 +193,12 @@ if uploaded_excel:
 
         # Fuzzy match for reference ID
         ref_id = session["ref_id"]
-        ref_match = None
-        for aln_id in aligned_sequences:
-            if ref_id == aln_id:
-                ref_match = aln_id
-                break
-            if ref_id in aln_id or aln_id in ref_id:
-                ref_match = aln_id
+        ref_match = difflib.get_close_matches(ref_id, aligned_sequences.keys(), n=1, cutoff=0.6)
         if not ref_match:
             st.error(f"Reference sequence not found in alignment. Tried matching '{ref_id}' to {list(aligned_sequences.keys())}")
             st.stop()
 
+        ref_match = ref_match[0]
         ref_aligned = aligned_sequences[ref_match]
         result_table = []
         for name, seq in aligned_sequences.items():
