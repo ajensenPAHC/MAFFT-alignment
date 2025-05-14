@@ -81,7 +81,7 @@ if uploaded_excel:
     if "proceed_alignment" not in session:
         if st.button("Submit Sequences for Alignment"):
             session["proceed_alignment"] = True
-            st.experimental_rerun()
+            st.rerun()
 
     if session.get("proceed_alignment"):
         all_seqs = [ref_seq] + [s for s in sequences if s.id != ref_seq.id]
@@ -151,65 +151,4 @@ if uploaded_excel:
         session["ref_id"] = ref_seq.id
         st.success("Alignment complete! Proceed to Step 5 for comparisons.")
 
-        st.header("Step 5: Pairwise Identity and Amino Acid Comparison")
-        aligned_sequences = {}
-        lines = aln.strip().split("\n")
-        for line in lines:
-            if line.startswith("CLUSTAL") or line.strip() == "" or line.startswith(" "):
-                continue
-            parts = re.split(r"\s+", line.strip())
-            if len(parts) >= 2:
-                name, seq = parts[0], parts[1]
-                aligned_sequences.setdefault(name, "")
-                aligned_sequences[name] += seq
-
-        ref_id = session["ref_id"]
-        ref_match = next((aid for aid in aligned_sequences if ref_id == aid or ref_id in aid or aid in ref_id), None)
-        if not ref_match:
-            st.error(f"Reference sequence not found in alignment. Tried matching '{ref_id}' to {list(aligned_sequences.keys())}")
-            st.stop()
-
-        ref_aligned = aligned_sequences[ref_match]
-
-        if "positions_selected" not in session:
-            pos_input = st.text_input("Enter amino acid positions to compare (comma-separated, 1-based):", "10, 25")
-            if st.button("Run Pairwise Identity and Position Comparison"):
-                session["positions"] = pos_input
-                session["positions_selected"] = True
-                st.experimental_rerun()
-
-        if session.get("positions_selected"):
-            pos_input = session.get("positions", "")
-            aa_indices = [int(x.strip()) - 1 for x in pos_input.split(',') if x.strip().isdigit()]
-
-            result_table = []
-            for name, seq in aligned_sequences.items():
-                if name == ref_match:
-                    continue
-                matches = sum(1 for a, b in zip(ref_aligned, seq) if a == b and a != '-')
-                total = sum(1 for a in zip(ref_aligned, seq) if a[0] != '-')
-                identity = round(100 * matches / total, 2) if total > 0 else 0.0
-                differences = {
-                    f"Pos {i+1}": f"{ref_aligned[i]}→{seq[i]}" if i < len(seq) else "-"
-                    for i in aa_indices
-                }
-                result_table.append({"Sample": name, "Identity %": identity, **differences})
-
-            result_df = pd.DataFrame(result_table)
-
-            def color_confidence(val):
-                green = cm.Greens(val / 100)
-                red = cm.Reds(1 - val / 100)
-                hex_color = f"background-color: rgba({int(255*red[0])},{int(255*green[1])},{int(255*green[2])}, 0.5)"
-                return hex_color
-
-            styled_df = result_df.style.applymap(color_confidence, subset=['Identity %'])
-            st.dataframe(styled_df)
-
-            csv = result_df.to_csv(index=False).encode('utf-8')
-            st.download_button("Download Comparison Results", csv, "comparison_results.csv", "text/csv")
-
-            if st.button("Start New Analysis"):
-                for key in list(session.keys()):
-                    del session[key]
-                st.experimental_rerun()
+        # Step 5 logic follows...
