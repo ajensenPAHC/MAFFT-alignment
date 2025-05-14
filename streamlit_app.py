@@ -79,9 +79,10 @@ if uploaded_excel:
         st.stop()
 
     # Prompt AA positions BEFORE alignment
-    aa_positions_input = st.text_input("Enter amino acid positions or ranges (e.g. 10,15-20):")
-    if aa_positions_input:
-        session["aa_positions_input"] = aa_positions_input
+    if "aa_positions_input" not in session:
+        session["aa_positions_input"] = st.text_input("Enter amino acid positions or ranges (e.g. 10,15-20):")
+    else:
+        st.text(f"Amino acid positions selected: {session['aa_positions_input']}")
 
     if "proceed_alignment" not in session:
         if st.button("Submit Sequences for Alignment"):
@@ -160,7 +161,10 @@ if uploaded_excel:
 if session.get("alignment_done"):
     st.subheader("Step 5: Pairwise Identity and Amino Acid Comparison")
 
-    if "aa_positions_input" in session:
-        st.write(f"Using previously entered positions: {session['aa_positions_input']}")
-    else:
-        st.warning("No amino acid positions were provided earlier. Restart and enter positions before alignment.")
+    default_pos = session.get("aa_positions_input", "")
+    aa_input = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12):", value=default_pos)
+    if aa_input:
+        session["aa_positions_input"] = aa_input
+
+    if st.button("Start Pairwise Comparison"):
+        st.info("Running pairwise identity and comparison (next version will implement it).")
