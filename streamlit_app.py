@@ -11,15 +11,9 @@ from matplotlib import pyplot as plt
 import re
 import os
 import base64
-from collections import defaultdict
 
 st.set_page_config(page_title="Amino Acid Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
-
-log_messages = []
-def log(msg):
-    log_messages.append(msg)
-    st.info(msg)
 
 uploaded_excel = st.file_uploader("Upload Excel Spreadsheet (.xlsx)", type=["xlsx"])
 uploaded_gene_db = st.file_uploader("Upload Gene Type Database (.csv) (Optional)", type=["csv"])
@@ -85,7 +79,6 @@ if uploaded_excel:
         st.stop()
 
     if st.button("Submit Sequences for Alignment"):
-        log("Preparing sequences for alignment...")
         all_seqs = [ref_seq] + [s for s in sequences if s.id != ref_seq.id]
 
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
@@ -102,7 +95,6 @@ if uploaded_excel:
 
         try:
             with open(fasta_path, 'rb') as f:
-                log("Submitting alignment job to Clustal Omega Web API...")
                 response = requests.post(
                     'https://www.ebi.ac.uk/Tools/services/rest/clustalo/run',
                     data={'email': 'your.email@example.com', 'stype': 'protein', 'guidetreeout': 'true'},
@@ -126,7 +118,6 @@ if uploaded_excel:
                 time.sleep(5)
                 waited += 5
 
-        log("Fetching alignment result...")
         aln = requests.get(f'https://www.ebi.ac.uk/Tools/services/rest/clustalo/result/{job_id}/aln-clustal_num').text
 
         if not aln.strip().startswith("CLUSTAL"):
@@ -143,32 +134,8 @@ if uploaded_excel:
 
         st.download_button("Download Alignment (CLUSTAL Format)", aln, file_name="alignment.aln")
 
-        st.subheader("Interactive Alignment Viewer")
-        msa_html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset='utf-8'>
-          <script src='https://cdn.jsdelivr.net/npm/msa@latest/dist/msa.js'></script>
-        </head>
-        <body>
-        <div id='msa-div'></div>
-        <script>
-        const msa = require('msa');
-        const opts = {{ el: document.getElementById('msa-div'), vis: {{ conserv: false }} }};
-        const m = msa(opts);
-        m.seqs.addFromClustal(`{aln}`);
-        m.render();
-        </script>
-        </body>
-        </html>
-        """
-        with open("msa_viewer.html", "w") as f:
-            f.write(msa_html)
-        st.components.v1.iframe("msa_viewer.html", height=450)
-
         fig, ax = plt.subplots(figsize=(10, len(aln.splitlines())/3))
-        ax.text(0, 0.5, aln.replace("\t", " "), family='monospace', fontsize=10)
+        ax.text(0, 0.5, aln.replace('\t', ' '), family='monospace', fontsize=10)
         ax.axis('off')
         png_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
         fig.savefig(png_file.name, bbox_inches='tight')
@@ -181,29 +148,27 @@ if uploaded_excel:
 
         # Step 5: Pairwise Comparisons
         st.header("Step 5: Pairwise Identity and Amino Acid Comparison")
-        aligned_sequences = defaultdict(str)
+        aligned_sequences = {}
         lines = aln.strip().split("\n")
         for line in lines:
             if line.startswith("CLUSTAL") or line.strip() == "" or line.startswith(" "):
                 continue
-            parts = re.split(r'\s+', line.strip(), maxsplit=1)
-            if len(parts) == 2:
-                name, seq = parts
+            parts = re.split(r"\s+", line.strip())
+            if len(parts) >= 2:
+                name, seq = parts[0], parts[1]
+                aligned_sequences.setdefault(name, "")
                 aligned_sequences[name] += seq
 
         ref_id = session["ref_id"]
-        ref_match = None
-        for aln_id in aligned_sequences:
-            if ref_id == aln_id:
-                ref_match = aln_id
-                break
-            if ref_id in aln_id or aln_id in ref_id:
-                ref_match = aln_id
+        ref_match = next((aid for aid in aligned_sequences if ref_id == aid or ref_id in aid or aid in ref_id), None)
         if not ref_match:
             st.error(f"Reference sequence not found in alignment. Tried matching '{ref_id}' to {list(aligned_sequences.keys())}")
             st.stop()
 
         ref_aligned = aligned_sequences[ref_match]
+        aa_positions = st.text_input("Enter amino acid positions to compare (comma-separated, 1-based):", "10, 25")
+        aa_indices = [int(x.strip()) - 1 for x in aa_positions.split(',') if x.strip().isdigit()]
+
         result_table = []
         for name, seq in aligned_sequences.items():
             if name == ref_match:
@@ -211,14 +176,22 @@ if uploaded_excel:
             matches = sum(1 for a, b in zip(ref_aligned, seq) if a == b and a != '-')
             total = sum(1 for a in zip(ref_aligned, seq) if a[0] != '-')
             identity = round(100 * matches / total, 2) if total > 0 else 0.0
-            result_table.append({"Sample": name, "Identity %": identity})
+            differences = {
+                f"Pos {i+1}": f"{ref_aligned[i]}→{seq[i]}" if i < len(seq) else "-"
+                for i in aa_indices
+            }
+            result_table.append({"Sample": name, "Identity %": identity, **differences})
 
         result_df = pd.DataFrame(result_table)
-        st.dataframe(result_df)
+
+        def color_confidence(val):
+            green = cm.Greens(val / 100)
+            red = cm.Reds(1 - val / 100)
+            hex_color = f"background-color: rgba({int(255*red[0])},{int(255*green[1])},{int(255*green[2])}, 0.5)"
+            return hex_color
+
+        styled_df = result_df.style.applymap(color_confidence, subset=['Identity %'])
+        st.dataframe(styled_df)
+
         csv = result_df.to_csv(index=False).encode('utf-8')
         st.download_button("Download Comparison Results", csv, "comparison_results.csv", "text/csv")
-
-if log_messages:
-    st.sidebar.title("📝 App Log")
-    for m in log_messages:
-        st.sidebar.write(m)
