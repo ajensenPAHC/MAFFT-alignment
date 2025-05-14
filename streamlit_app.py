@@ -78,7 +78,6 @@ if uploaded_excel:
         st.warning("Please provide a valid reference sequence to proceed.")
         st.stop()
 
-    # Show AA input box and persist value BEFORE alignment
     if "aa_positions_input" not in session:
         session["aa_positions_input"] = ""
     session["aa_positions_input"] = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12):", value=session["aa_positions_input"])
@@ -162,9 +161,50 @@ if session.get("alignment_done"):
 
     if session.get("aa_positions_input"):
         st.markdown(f"**Amino acid positions selected:** {session['aa_positions_input']}")
-    else:
-        st.warning("No amino acid positions were selected earlier.")
 
-    if st.button("Start Pairwise Comparison"):
-        st.info("Running pairwise identity and comparison (next version will implement it).")
-        st.stop()
+        positions = []
+        tokens = session["aa_positions_input"].split(',')
+        for token in tokens:
+            if '-' in token:
+                start, end = token.split('-')
+                positions.extend(range(int(start)-1, int(end)))
+            else:
+                positions.append(int(token)-1)
+
+        aligned_records = {}
+        for block in session["aligned_fasta"].split("\n\n"):
+            for line in block.strip().split("\n"):
+                if line.startswith("CLUSTAL") or not line.strip():
+                    continue
+                parts = line.strip().split()
+                if len(parts) < 2:
+                    continue
+                identifier, sequence = parts[0], parts[1]
+                aligned_records.setdefault(identifier, '')
+                aligned_records[identifier] += sequence
+
+        ref_id = session.get("ref_id")
+        ref_sequence = aligned_records.get(ref_id)
+
+        if not ref_sequence:
+            st.error(f"Reference sequence not found in alignment. Tried matching '{ref_id}' to {list(aligned_records.keys())}")
+            st.stop()
+
+        results = []
+        for id_, aligned_seq in aligned_records.items():
+            matches = [aligned_seq[pos] == ref_sequence[pos] for pos in positions if pos < len(aligned_seq)]
+            match_count = sum(matches)
+            identity = round(100 * match_count / len(matches), 2) if matches else 0
+            result_row = {"Sample ID": id_, "Identity %": identity}
+            for pos in positions:
+                if pos < len(ref_sequence):
+                    result_row[f"Pos {pos+1}"] = aligned_seq[pos]
+            results.append(result_row)
+
+        result_df = pd.DataFrame(results)
+        st.dataframe(result_df.style.background_gradient(cmap='Blues', subset=['Identity %']))
+
+        csv_file = result_df.to_csv(index=False).encode('utf-8')
+        st.download_button("Download Comparison Results", csv_file, "comparison_results.csv", "text/csv")
+    else:
+        st.warning("No amino acid positions were selected earlier. Cannot perform comparison.")
