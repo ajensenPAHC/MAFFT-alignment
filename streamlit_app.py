@@ -5,6 +5,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import pairwise2
 from Bio.Align import substitution_matrices
+from Bio.pairwise2 import format_alignment
 import tempfile
 import requests
 import time
@@ -160,9 +161,15 @@ if uploaded_excel:
         else:
             scores = []
             for record in aligned_records:
-                alignment = pairwise2.align.globalds(reference_record.seq, record.seq, blosum62, -10, -1, one_alignment_only=True)[0]
-                identity = sum(res1 == res2 for res1, res2 in zip(alignment.seqA, alignment.seqB)) / len(alignment.seqA) * 100
-                scores.append({"Name": record.id, "Identity %": round(identity, 2)})
+                if record.id == reference_record.id:
+                    continue
+                try:
+                    alignment = pairwise2.align.globalds(reference_record.seq, record.seq, blosum62, -10, -1, one_alignment_only=True)[0]
+                    identity = sum(res1 == res2 for res1, res2 in zip(alignment.seqA, alignment.seqB)) / len(alignment.seqA) * 100
+                    scores.append({"Name": record.id, "Identity %": round(identity, 2)})
+                except Exception as e:
+                    scores.append({"Name": record.id, "Identity %": "Error"})
+                    st.error(f"Pairwise alignment failed for {record.id}: {e}")
 
             result_df = pd.DataFrame(scores)
             st.dataframe(result_df.style.background_gradient(cmap='Blues'), use_container_width=True)
