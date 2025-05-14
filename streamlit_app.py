@@ -160,5 +160,11 @@ if uploaded_excel:
 if session.get("alignment_done"):
     st.subheader("Step 5: Pairwise Identity and Amino Acid Comparison")
 
+    if session.get("aa_positions_input"):
+        st.markdown(f"**Amino acid positions selected:** {session['aa_positions_input']}")
+    else:
+        st.warning("No amino acid positions were selected earlier.")
+
     if st.button("Start Pairwise Comparison"):
         st.info("Running pairwise identity and comparison (next version will implement it).")
+        st.stop()
