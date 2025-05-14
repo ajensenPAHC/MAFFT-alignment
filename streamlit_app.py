@@ -78,10 +78,10 @@ if uploaded_excel:
         st.warning("Please provide a valid reference sequence to proceed.")
         st.stop()
 
-    # Ask for amino acid positions before alignment
-    aa_input = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12):")
-    if aa_input:
-        session["aa_positions_input"] = aa_input
+    # Show AA input box and persist value BEFORE alignment
+    if "aa_positions_input" not in session:
+        session["aa_positions_input"] = ""
+    session["aa_positions_input"] = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12):", value=session["aa_positions_input"])
 
     if "proceed_alignment" not in session:
         if st.button("Submit Sequences for Alignment"):
