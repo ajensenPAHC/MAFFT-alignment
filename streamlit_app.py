@@ -199,9 +199,10 @@ if uploaded_excel:
         for name, test_seq in aligned_seqs.items():
             if name == ref_seq.id:
                 continue
-            total_matches = sum(1 for a, b in zip(ref_aligned_seq, test_seq) if a == b)
-            total_length = sum(1 for a in ref_aligned_seq if a != '-')
-            identity_pct = 100 * total_matches / total_length if total_length else 0
+
+            matches = sum(1 for a, b in zip(ref_aligned_seq, test_seq) if a == b and a != '-' and b != '-')
+            total = sum(1 for a, b in zip(ref_aligned_seq, test_seq) if a != '-' and b != '-')
+            identity_pct = 100 * matches / total if total else 0
 
             aa_comparison = {}
             for p in pos_list:
