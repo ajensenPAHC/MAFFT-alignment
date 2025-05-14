@@ -149,6 +149,12 @@ if uploaded_excel:
 
         session["aligned_fasta"] = aln
         session["ref_id"] = ref_seq.id
+        session["alignment_done"] = True
         st.success("Alignment complete! Proceed to Step 5 for comparisons.")
 
-        # Step 5 logic follows...
+if session.get("alignment_done"):
+    st.subheader("Step 5: Pairwise Identity and Amino Acid Comparison")
+
+    aa_positions_input = st.text_input("Enter amino acid positions or ranges (e.g. 10,15-20):")
+    if aa_positions_input:
+        st.write(f"Positions to compare: {aa_positions_input}")
