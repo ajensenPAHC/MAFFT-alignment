@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 import re
 import os
 import base64
-import difflib
+from collections import defaultdict
 
 st.set_page_config(page_title="Amino Acid Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
@@ -168,7 +168,7 @@ if uploaded_excel:
         st.components.v1.iframe("msa_viewer.html", height=450)
 
         fig, ax = plt.subplots(figsize=(10, len(aln.splitlines())/3))
-        ax.text(0, 0.5, aln, family='monospace', fontsize=10)
+        ax.text(0, 0.5, aln.replace("\t", " "), family='monospace', fontsize=10)
         ax.axis('off')
         png_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
         fig.savefig(png_file.name, bbox_inches='tight')
@@ -179,26 +179,30 @@ if uploaded_excel:
         session["ref_id"] = ref_seq.id
         st.success("Alignment complete! Proceed to Step 5 for comparisons.")
 
+        # Step 5: Pairwise Comparisons
         st.header("Step 5: Pairwise Identity and Amino Acid Comparison")
-        aligned_sequences = {}
+        aligned_sequences = defaultdict(str)
         lines = aln.strip().split("\n")
         for line in lines:
             if line.startswith("CLUSTAL") or line.strip() == "" or line.startswith(" "):
                 continue
-            parts = line.strip().split()
+            parts = re.split(r'\s+', line.strip(), maxsplit=1)
             if len(parts) == 2:
                 name, seq = parts
-                aligned_sequences.setdefault(name, "")
                 aligned_sequences[name] += seq
 
-        # Fuzzy match for reference ID
         ref_id = session["ref_id"]
-        ref_match = difflib.get_close_matches(ref_id, aligned_sequences.keys(), n=1, cutoff=0.6)
+        ref_match = None
+        for aln_id in aligned_sequences:
+            if ref_id == aln_id:
+                ref_match = aln_id
+                break
+            if ref_id in aln_id or aln_id in ref_id:
+                ref_match = aln_id
         if not ref_match:
             st.error(f"Reference sequence not found in alignment. Tried matching '{ref_id}' to {list(aligned_sequences.keys())}")
             st.stop()
 
-        ref_match = ref_match[0]
         ref_aligned = aligned_sequences[ref_match]
         result_table = []
         for name, seq in aligned_sequences.items():
