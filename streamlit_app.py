@@ -3,6 +3,8 @@ import pandas as pd
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio import pairwise2
+from Bio.SubsMat import MatrixInfo as matlist
 import tempfile
 import requests
 import time
@@ -196,12 +198,16 @@ if uploaded_excel:
         result_table.append(ref_pos_row)
         result_table.append(align_pos_row)
 
+        matrix = matlist.blosum62
+
         for name, test_seq in aligned_seqs.items():
             if name == ref_seq.id:
                 continue
 
-            matches = sum(1 for a, b in zip(ref_aligned_seq, test_seq) if a == b and a != '-' and b != '-')
-            total = sum(1 for a, b in zip(ref_aligned_seq, test_seq) if a != '-' and b != '-')
+            alignments = pairwise2.align.globalds(ref_aligned_seq.replace("-", ""), test_seq.replace("-", ""), matrix, -10, -0.5)
+            aligned_ref, aligned_test, score, begin, end = alignments[0]
+            matches = sum(1 for a, b in zip(aligned_ref, aligned_test) if a == b and a != '-' and b != '-')
+            total = sum(1 for a, b in zip(aligned_ref, aligned_test) if a != '-' and b != '-')
             identity_pct = 100 * matches / total if total else 0
 
             aa_comparison = {}
