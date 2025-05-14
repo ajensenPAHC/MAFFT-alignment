@@ -148,7 +148,6 @@ if uploaded_excel:
 
         st.subheader("Step 5: Pairwise Identity and Amino Acid Comparison")
 
-        # Parse aligned sequences
         aligned_seqs = {}
         for line in aln.splitlines():
             if line.strip() and not line.startswith("CLUSTAL") and not line.startswith(" "):
@@ -182,6 +181,21 @@ if uploaded_excel:
             ref_aa_index_map.append(aa_count)
 
         result_table = []
+        ref_pos_row = {"Name": "Reference Position (Unaligned)", "Identity %": ""}
+        align_pos_row = {"Name": "Alignment Position (Aligned Index)", "Identity %": ""}
+
+        for p in pos_list:
+            try:
+                idx = ref_aa_index_map.index(p)
+                ref_pos_row[f"Pos {p}"] = p
+                align_pos_row[f"Pos {p}"] = idx + 1
+            except ValueError:
+                ref_pos_row[f"Pos {p}"] = "-"
+                align_pos_row[f"Pos {p}"] = "-"
+
+        result_table.append(ref_pos_row)
+        result_table.append(align_pos_row)
+
         for name, test_seq in aligned_seqs.items():
             if name == ref_seq.id:
                 continue
