@@ -4,7 +4,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import pairwise2
-from Bio.SubsMat import MatrixInfo as matlist
+from Bio.Align import substitution_matrices
 import tempfile
 import requests
 import time
@@ -148,93 +148,23 @@ if uploaded_excel:
 
         st.success("Alignment complete! Proceeding to analysis.")
 
-        st.subheader("Step 5: Pairwise Identity and Amino Acid Comparison")
+        # === Enhanced Pairwise Identity Analysis ===
+        st.subheader("Step 5: Pairwise Identity with BLOSUM62")
+        blosum62 = substitution_matrices.load("BLOSUM62")
 
-        aligned_seqs = {}
-        for line in aln.splitlines():
-            if line.strip() and not line.startswith("CLUSTAL") and not line.startswith(" "):
-                parts = line.split()
-                if len(parts) >= 2:
-                    name, seq = parts[0], parts[1]
-                    aligned_seqs[name] = aligned_seqs.get(name, "") + seq
+        aligned_records = list(SeqIO.parse(aligned_file_path, "clustal"))
+        reference_record = next((r for r in aligned_records if r.id == ref_seq.id), None)
 
-        ref_aligned_seq = aligned_seqs.get(ref_seq.id)
-        if not ref_aligned_seq:
-            st.error(f"Reference sequence not found in alignment. Tried matching '{ref_seq.id}' to {list(aligned_seqs.keys())}")
-            st.stop()
+        if not reference_record:
+            st.warning(f"Reference sequence not found in alignment. Tried matching '{ref_seq.id}'")
+        else:
+            scores = []
+            for record in aligned_records:
+                alignment = pairwise2.align.globalds(reference_record.seq, record.seq, blosum62, -10, -1, one_alignment_only=True)[0]
+                identity = sum(res1 == res2 for res1, res2 in zip(alignment.seqA, alignment.seqB)) / len(alignment.seqA) * 100
+                scores.append({"Name": record.id, "Identity %": round(identity, 2)})
 
-        def parse_positions(pos_string):
-            pos_list = []
-            for part in pos_string.split(','):
-                if '-' in part:
-                    start, end = map(int, part.split('-'))
-                    pos_list.extend(range(start, end + 1))
-                else:
-                    pos_list.append(int(part))
-            return sorted(set(pos_list))
-
-        pos_list = parse_positions(aa_positions_input)
-
-        ref_aa_index_map = []
-        aa_count = 0
-        for i, aa in enumerate(ref_aligned_seq):
-            if aa != '-':
-                aa_count += 1
-            ref_aa_index_map.append(aa_count)
-
-        result_table = []
-        ref_pos_row = {"Name": "Reference Position (Unaligned)", "Identity %": ""}
-        align_pos_row = {"Name": "Alignment Position (Aligned Index)", "Identity %": ""}
-
-        for p in pos_list:
-            try:
-                idx = ref_aa_index_map.index(p)
-                ref_pos_row[f"Pos {p}"] = p
-                align_pos_row[f"Pos {p}"] = idx + 1
-            except ValueError:
-                ref_pos_row[f"Pos {p}"] = "-"
-                align_pos_row[f"Pos {p}"] = "-"
-
-        result_table.append(ref_pos_row)
-        result_table.append(align_pos_row)
-
-        matrix = matlist.blosum62
-
-        for name, test_seq in aligned_seqs.items():
-            if name == ref_seq.id:
-                continue
-
-            alignments = pairwise2.align.globalds(ref_aligned_seq.replace("-", ""), test_seq.replace("-", ""), matrix, -10, -0.5)
-            aligned_ref, aligned_test, score, begin, end = alignments[0]
-            matches = sum(1 for a, b in zip(aligned_ref, aligned_test) if a == b and a != '-' and b != '-')
-            total = sum(1 for a, b in zip(aligned_ref, aligned_test) if a != '-' and b != '-')
-            identity_pct = 100 * matches / total if total else 0
-
-            aa_comparison = {}
-            for p in pos_list:
-                try:
-                    idx = ref_aa_index_map.index(p)
-                    aa_comparison[f"Pos {p}"] = test_seq[idx] if idx < len(test_seq) else "-"
-                except ValueError:
-                    aa_comparison[f"Pos {p}"] = "-"
-
-            row = {"Name": name, "Identity %": identity_pct, **aa_comparison}
-            result_table.append(row)
-
-        result_df = pd.DataFrame(result_table)
-
-        def color_confidence(val):
-            try:
-                green = cm.Greens(val / 100)
-                red = cm.Reds(1 - val / 100)
-                hex_color = f"background-color: rgba({int(255*red[0])},{int(255*green[1])},{int(255*green[2])},0.6)"
-                return hex_color
-            except:
-                return ""
-
-        st.subheader("Final Result Table")
-        styled_df = result_df.style.applymap(color_confidence, subset=["Identity %"])
-        st.dataframe(styled_df, use_container_width=True)
-
-        csv_out = result_df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download Comparison Results (CSV)", csv_out, file_name="pairwise_results.csv")
+            result_df = pd.DataFrame(scores)
+            st.dataframe(result_df.style.background_gradient(cmap='Blues'), use_container_width=True)
+            csv_out = result_df.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Identity Results (CSV)", csv_out, file_name="pairwise_identity.csv")
