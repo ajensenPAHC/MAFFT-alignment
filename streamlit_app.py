@@ -159,17 +159,25 @@ if uploaded_excel:
         if not reference_record:
             st.warning(f"Reference sequence not found in alignment. Tried matching '{ref_seq.id}'")
         else:
+            def safe_identity(seq1, seq2, matrix):
+                try:
+                    alignment = pairwise2.align.globalds(seq1, seq2, matrix, -10, -1, one_alignment_only=True)[0]
+                    matches = sum((a == b) and (a in matrix.alphabet) for a, b in zip(alignment.seqA, alignment.seqB))
+                    valid_length = sum((a in matrix.alphabet and b in matrix.alphabet) for a, b in zip(alignment.seqA, alignment.seqB))
+                    return round((matches / valid_length) * 100, 2) if valid_length else 0.0
+                except Exception as e:
+                    return None, str(e)
+
             scores = []
             for record in aligned_records:
                 if record.id == reference_record.id:
                     continue
-                try:
-                    alignment = pairwise2.align.globalds(reference_record.seq, record.seq, blosum62, -10, -1, one_alignment_only=True)[0]
-                    identity = sum(res1 == res2 for res1, res2 in zip(alignment.seqA, alignment.seqB)) / len(alignment.seqA) * 100
-                    scores.append({"Name": record.id, "Identity %": round(identity, 2)})
-                except Exception as e:
+                identity = safe_identity(reference_record.seq, record.seq, blosum62)
+                if isinstance(identity, tuple):
                     scores.append({"Name": record.id, "Identity %": "Error"})
-                    st.error(f"Pairwise alignment failed for {record.id}: {e}")
+                    st.error(f"Pairwise comparison failed for {record.id}: {identity[1]}")
+                else:
+                    scores.append({"Name": record.id, "Identity %": identity})
 
             result_df = pd.DataFrame(scores)
             st.dataframe(result_df.style.background_gradient(cmap='Blues'), use_container_width=True)
