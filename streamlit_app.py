@@ -78,7 +78,12 @@ if uploaded_excel:
         st.warning("Please provide a valid reference sequence to proceed.")
         st.stop()
 
-    if st.button("Submit Sequences for Alignment"):
+    if "proceed_alignment" not in session:
+        if st.button("Submit Sequences for Alignment"):
+            session["proceed_alignment"] = True
+            st.experimental_rerun()
+
+    if session.get("proceed_alignment"):
         all_seqs = [ref_seq] + [s for s in sequences if s.id != ref_seq.id]
 
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
@@ -146,7 +151,6 @@ if uploaded_excel:
         session["ref_id"] = ref_seq.id
         st.success("Alignment complete! Proceed to Step 5 for comparisons.")
 
-        # Step 5: Pairwise Comparisons
         st.header("Step 5: Pairwise Identity and Amino Acid Comparison")
         aligned_sequences = {}
         lines = aln.strip().split("\n")
@@ -166,32 +170,46 @@ if uploaded_excel:
             st.stop()
 
         ref_aligned = aligned_sequences[ref_match]
-        aa_positions = st.text_input("Enter amino acid positions to compare (comma-separated, 1-based):", "10, 25")
-        aa_indices = [int(x.strip()) - 1 for x in aa_positions.split(',') if x.strip().isdigit()]
 
-        result_table = []
-        for name, seq in aligned_sequences.items():
-            if name == ref_match:
-                continue
-            matches = sum(1 for a, b in zip(ref_aligned, seq) if a == b and a != '-')
-            total = sum(1 for a in zip(ref_aligned, seq) if a[0] != '-')
-            identity = round(100 * matches / total, 2) if total > 0 else 0.0
-            differences = {
-                f"Pos {i+1}": f"{ref_aligned[i]}→{seq[i]}" if i < len(seq) else "-"
-                for i in aa_indices
-            }
-            result_table.append({"Sample": name, "Identity %": identity, **differences})
+        if "positions_selected" not in session:
+            pos_input = st.text_input("Enter amino acid positions to compare (comma-separated, 1-based):", "10, 25")
+            if st.button("Run Pairwise Identity and Position Comparison"):
+                session["positions"] = pos_input
+                session["positions_selected"] = True
+                st.experimental_rerun()
 
-        result_df = pd.DataFrame(result_table)
+        if session.get("positions_selected"):
+            pos_input = session.get("positions", "")
+            aa_indices = [int(x.strip()) - 1 for x in pos_input.split(',') if x.strip().isdigit()]
 
-        def color_confidence(val):
-            green = cm.Greens(val / 100)
-            red = cm.Reds(1 - val / 100)
-            hex_color = f"background-color: rgba({int(255*red[0])},{int(255*green[1])},{int(255*green[2])}, 0.5)"
-            return hex_color
+            result_table = []
+            for name, seq in aligned_sequences.items():
+                if name == ref_match:
+                    continue
+                matches = sum(1 for a, b in zip(ref_aligned, seq) if a == b and a != '-')
+                total = sum(1 for a in zip(ref_aligned, seq) if a[0] != '-')
+                identity = round(100 * matches / total, 2) if total > 0 else 0.0
+                differences = {
+                    f"Pos {i+1}": f"{ref_aligned[i]}→{seq[i]}" if i < len(seq) else "-"
+                    for i in aa_indices
+                }
+                result_table.append({"Sample": name, "Identity %": identity, **differences})
 
-        styled_df = result_df.style.applymap(color_confidence, subset=['Identity %'])
-        st.dataframe(styled_df)
+            result_df = pd.DataFrame(result_table)
 
-        csv = result_df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download Comparison Results", csv, "comparison_results.csv", "text/csv")
+            def color_confidence(val):
+                green = cm.Greens(val / 100)
+                red = cm.Reds(1 - val / 100)
+                hex_color = f"background-color: rgba({int(255*red[0])},{int(255*green[1])},{int(255*green[2])}, 0.5)"
+                return hex_color
+
+            styled_df = result_df.style.applymap(color_confidence, subset=['Identity %'])
+            st.dataframe(styled_df)
+
+            csv = result_df.to_csv(index=False).encode('utf-8')
+            st.download_button("Download Comparison Results", csv, "comparison_results.csv", "text/csv")
+
+            if st.button("Start New Analysis"):
+                for key in list(session.keys()):
+                    del session[key]
+                st.experimental_rerun()
