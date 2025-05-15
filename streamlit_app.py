@@ -58,9 +58,8 @@ if uploaded_file:
 
     selection_type = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
     if selection_type == "Range":
-        start_row = st.number_input("Start row (≥2)", min_value=2, step=1)
-        end_row = st.number_input("End row", min_value=start_row, step=1)
-        selected_rows = list(range(start_row, end_row + 1))
+        row_range = st.slider("Select row range to process (starting from row 2):", 2, len(df) + 1, (2, len(df) + 1))
+        selected_rows = list(range(row_range[0], row_range[1] + 1))
     else:
         selected_rows_input = st.text_input("Enter specific rows (comma-separated)", "2,3,4")
         selected_rows = [int(x.strip()) for x in selected_rows_input.split(",") if x.strip().isdigit()]
@@ -177,19 +176,19 @@ if uploaded_file:
             except Exception as e:
                 pairwise_identity = 0.0
 
-            result = {
-                "ID": rec.id,
-                "MSA Identity %": msa_identity,
-                "Pairwise Identity %": pairwise_identity
-            }
+            row = {"ID": rec.id}
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else '-'
                 test_aa = str(rec.seq)[align_idx] if align_idx is not None else '-'
-                result[f"Ref Pos {pos}"] = ref_aa
-                result[f"Test Pos {pos}"] = test_aa
-                result[f"Alignment Pos {pos}"] = align_idx if align_idx is not None else 'N/A'
-            result_table.append(result)
+                row[f"Ref Pos {pos}"] = ref_aa
+                row[f"Align Pos {pos}"] = align_idx if align_idx is not None else 'N/A'
+                row[f"Test Pos {pos}"] = test_aa
+
+            row["MSA Identity %"] = msa_identity
+            row["Pairwise Identity %"] = pairwise_identity
+
+            result_table.append(row)
 
         df_results = pd.DataFrame(result_table)
 
