@@ -40,6 +40,8 @@ aligner.open_gap_score = -10
 aligner.extend_gap_score = -0.5
 
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
+ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format)", type=[".fasta"])
+
 if uploaded_file:
     excel = pd.ExcelFile(uploaded_file)
     sheet_name = st.selectbox("Select sheet", excel.sheet_names)
@@ -49,7 +51,7 @@ if uploaded_file:
     st.write("Preview of selected sheet:")
     st.dataframe(df.head(10))
 
-    name_col = st.selectbox("Select column for sequence name", df.columns)
+    name_cols = st.multiselect("Select columns to create sequence names", df.columns)
     seq_col = st.selectbox("Select column for amino acid sequence", df.columns)
 
     selection_type = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
@@ -61,7 +63,10 @@ if uploaded_file:
         selected_rows_input = st.text_input("Enter specific rows (comma-separated)", "2,3,4")
         selected_rows = [int(x.strip()) for x in selected_rows_input.split(",") if x.strip().isdigit()]
 
-    ref_row = st.number_input("Enter the row number of the reference sequence (≥2)", min_value=2, step=1)
+    ref_row = None
+    use_uploaded_ref = st.checkbox("Use uploaded FASTA as reference instead of selecting from Excel")
+    if not use_uploaded_ref:
+        ref_row = st.number_input("Enter the row number of the reference sequence (≥2)", min_value=2, step=1)
 
     aa_pos_input = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12)", "5,10-12")
 
@@ -80,18 +85,22 @@ if uploaded_file:
 
         records = []
         ref_seq = None
+
         for idx in selected_rows:
             row = df.loc[idx]
-            name = str(row[name_col])
+            name = "_".join([str(row[col]) for col in name_cols])
             sequence = str(row[seq_col]).replace("\n", "").strip()
             record = SeqRecord(Seq(sequence), id=name, description="")
-            if idx == ref_row:
+            if not use_uploaded_ref and idx == ref_row:
                 ref_seq = record
             else:
                 records.append(record)
 
+        if use_uploaded_ref and ref_fasta:
+            ref_seq = list(SeqIO.parse(ref_fasta, "fasta"))[0]
+
         if not ref_seq:
-            st.error("Reference sequence not found. Make sure its row is selected and correctly entered.")
+            st.error("Reference sequence not found. Please verify selection or upload.")
             st.stop()
 
         all_records = [ref_seq] + records
