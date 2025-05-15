@@ -18,7 +18,7 @@ st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
 
 st.markdown("""
-### 🗭 Application Flow
+### 🗬 Application Flow
 1. **Upload Excel File**: Provide sequence and sample metadata.
 2. **Select Name & Sequence Columns**: Choose how each sequence is labeled and where the amino acid data is.
 3. **Choose Sequences**: Either by row range or specific row numbers.
@@ -172,7 +172,7 @@ if uploaded_file:
 
             msa_identity = compute_identity(ref_aligned_seq, str(rec.seq))
             try:
-                pairwise_score = aligner.align(str(ref_seq.seq), str(rec.seq))[0].score
+                pairwise_score = aligner.align(str(ref_seq.seq), str(rec.seq).replace('-', ''))[0].score
                 pairwise_identity = round(pairwise_score / len(ref_seq.seq), 2)
             except Exception as e:
                 pairwise_identity = 0.0
@@ -188,6 +188,7 @@ if uploaded_file:
                 test_aa = str(rec.seq)[align_idx] if align_idx is not None else '-'
                 result[f"Ref Pos {pos}"] = ref_aa
                 result[f"Test Pos {pos}"] = test_aa
+                result[f"Alignment Pos {pos}"] = align_idx if align_idx is not None else 'N/A'
             result_table.append(result)
 
         df_results = pd.DataFrame(result_table)
