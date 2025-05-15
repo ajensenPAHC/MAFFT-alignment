@@ -3,19 +3,18 @@ import pandas as pd
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio.Align import substitution_matrices
+from Bio import Align
 import tempfile
 import requests
 import time
+from io import StringIO
 from matplotlib import cm
 from matplotlib import pyplot as plt
-import re
-import os
 import base64
-from Bio import Align
-from Bio.Align import substitution_matrices
-from io import StringIO
+import re
 
-st.set_page_config(page_title="Amino Acid Analyzer", layout="wide")
+st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
 
 st.markdown("""
@@ -40,132 +39,150 @@ aligner.mode = 'global'
 aligner.open_gap_score = -10
 aligner.extend_gap_score = -0.5
 
-uploaded_file = st.file_uploader("📤 Upload Excel file with sequences", type=["xlsx"])
-
+uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
 if uploaded_file:
-    xls = pd.ExcelFile(uploaded_file)
-    sheet_name = st.selectbox("📑 Select a sheet", xls.sheet_names)
-    df = pd.read_excel(xls, sheet_name)
-    df_display = df.copy()
-    df_display.index += 2
-    st.dataframe(df_display, use_container_width=True)
+    excel = pd.ExcelFile(uploaded_file)
+    sheet_name = st.selectbox("Select sheet", excel.sheet_names)
+    df = excel.parse(sheet_name)
+    df.index += 2  # Shift for better human readability
 
-    name_col = st.selectbox("🔤 Select name/label column", df.columns)
-    seq_col = st.selectbox("🧬 Select amino acid sequence column", df.columns)
+    st.write("Preview of selected sheet:")
+    st.dataframe(df.head(10))
 
-    row_method = st.radio("📊 How do you want to select rows?", ["Range", "Specific Rows"])
-    if row_method == "Range":
-        row_range = st.slider("📌 Select row range (Excel-style)", 2, len(df)+1, (2, len(df)+1))
-        selected_df = df.iloc[(row_range[0]-2):(row_range[1]-2)].copy()
+    name_col = st.selectbox("Select column for sequence name", df.columns)
+    seq_col = st.selectbox("Select column for amino acid sequence", df.columns)
+
+    selection_type = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
+    if selection_type == "Range":
+        start_row = st.number_input("Start row (≥2)", min_value=2, step=1)
+        end_row = st.number_input("End row", min_value=start_row, step=1)
+        selected_rows = list(range(start_row, end_row + 1))
     else:
-        row_ids = st.text_input("🔢 Enter specific row numbers separated by commas (e.g., 2,5,8)")
-        if row_ids:
-            indices = [int(i.strip())-2 for i in row_ids.split(",")]
-            selected_df = df.iloc[indices].copy()
-        else:
-            selected_df = pd.DataFrame()
+        selected_rows_input = st.text_input("Enter specific rows (comma-separated)", "2,3,4")
+        selected_rows = [int(x.strip()) for x in selected_rows_input.split(",") if x.strip().isdigit()]
 
-    ref_index = st.number_input("🎯 Enter the row number of the reference sequence", min_value=2, max_value=len(df)+1, step=1)
-    ref_seq = df.iloc[ref_index-2]
+    ref_row = st.number_input("Enter the row number of the reference sequence (≥2)", min_value=2, step=1)
 
-    position_string = st.text_input("🔍 Enter amino acid positions or ranges (e.g. 5,10-12):")
+    aa_pos_input = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12)", "5,10-12")
 
-    def parse_aa_positions(pos_string):
-        positions = []
-        if not pos_string:
-            return positions
-        for part in pos_string.split(","):
-            if "-" in part:
-                start, end = map(int, part.split("-"))
-                positions.extend(range(start, end+1))
-            else:
-                positions.append(int(part))
-        return sorted(set(positions))
+    if st.button("Submit Sequences for Alignment"):
+        def parse_positions(pos_string):
+            pos_set = set()
+            for part in pos_string.split(','):
+                if '-' in part:
+                    start, end = part.split('-')
+                    pos_set.update(range(int(start), int(end)+1))
+                else:
+                    pos_set.add(int(part))
+            return sorted(pos_set)
 
-    positions = parse_aa_positions(position_string)
+        aa_positions = parse_positions(aa_pos_input)
 
-    if st.button("▶️ Submit Sequences for Alignment"):
-        sequences = []
-        for _, row in selected_df.iterrows():
+        records = []
+        ref_seq = None
+        for idx in selected_rows:
+            row = df.loc[idx]
             name = str(row[name_col])
-            sequence = str(row[seq_col]).replace(" ", "").replace("\n", "")
-            sequences.append(SeqRecord(Seq(sequence), id=name, description=""))
+            sequence = str(row[seq_col]).replace("\n", "").strip()
+            record = SeqRecord(Seq(sequence), id=name, description="")
+            if idx == ref_row:
+                ref_seq = record
+            else:
+                records.append(record)
 
-        ref_name = str(ref_seq[name_col])
-        ref_sequence = str(ref_seq[seq_col]).replace(" ", "").replace("\n", "")
-        sequences.insert(0, SeqRecord(Seq(ref_sequence), id=ref_name, description=""))
+        if not ref_seq:
+            st.error("Reference sequence not found. Make sure its row is selected and correctly entered.")
+            st.stop()
+
+        all_records = [ref_seq] + records
 
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
-            SeqIO.write(sequences, fasta_file.name, "fasta")
+            SeqIO.write(all_records, fasta_file.name, "fasta")
             fasta_path = fasta_file.name
-            with open(fasta_path) as f:
-                st.code(f.read(), language='fasta')
 
-        st.info("🧬 Submitting to Clustal Omega...")
-        with open(fasta_path) as f:
-            data = {'sequence': f.read(), 'email': 'your@email.com', 'stype': 'protein'}
-            res = requests.post('https://www.ebi.ac.uk/Tools/services/rest/clustalo/run', data=data)
-            job_id = res.text.strip()
+        with open(fasta_path, 'r') as f:
+            st.text_area("Generated FASTA Preview", f.read(), height=200)
 
-        time.sleep(10)
-        result_url = f"https://www.ebi.ac.uk/Tools/services/rest/clustalo/result/{job_id}/aln-clustal_num"
-        alignment_res = requests.get(result_url)
+        st.info("Submitting alignment job to Clustal Omega Web API...")
+        with open(fasta_path, 'r') as f:
+            fasta_str = f.read()
 
-        if alignment_res.status_code != 200:
-            st.error("Clustal Omega returned an error. Check input format or sequence diversity.")
+        submit_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
+        result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
+
+        response = requests.post(submit_url, data={
+            'sequence': fasta_str,
+            'stype': 'protein',
+            'email': 'anonymous@example.com'
+        })
+
+        job_id = response.text.strip()
+        status_url = f"https://www.ebi.ac.uk/Tools/services/rest/clustalo/status/{job_id}"
+
+        for _ in range(40):
+            status = requests.get(status_url).text.strip()
+            if status == "FINISHED":
+                break
+            time.sleep(3)
+
+        alignment = requests.get(f"{result_url}/{job_id}/aln-clustal_num").text
+        st.code(alignment, language="text")
+
+        clustal_io = StringIO(alignment)
+        alignments = list(SeqIO.parse(clustal_io, "clustal"))
+
+        ref_aligned_seq = next((str(rec.seq) for rec in alignments if rec.id == ref_seq.id), None)
+        if not ref_aligned_seq:
+            st.error("Reference sequence not found in alignment.")
             st.stop()
 
-        alignment_data = alignment_res.text
-        st.text_area("📄 Alignment Output (CLUSTAL)", alignment_data, height=300)
+        alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
 
-        alignment = Align.MultipleSeqAlignment(list(SeqIO.parse(StringIO(alignment_data), "clustal")))
-        aligned_seqs = {rec.id: str(rec.seq) for rec in alignment}
+        def compute_identity(seq1, seq2):
+            if len(seq1) != len(seq2):
+                return 0.0
+            matches = sum(a == b for a, b in zip(seq1, seq2) if a != '-' and b != '-')
+            aligned_length = sum(1 for a, b in zip(seq1, seq2) if a != '-' and b != '-')
+            return round((matches / aligned_length) * 100, 2) if aligned_length else 0.0
 
-        ref_aligned = aligned_seqs.get(ref_name)
-        if not ref_aligned:
-            st.error(f"Reference '{ref_name}' not found in alignment!")
-            st.stop()
+        def map_ref_positions(seq):
+            mapping = {}
+            pos = 0
+            for idx, aa in enumerate(seq):
+                if aa != '-':
+                    pos += 1
+                    mapping[pos] = idx
+            return mapping
 
-        aa_table = []
-        for sid, seq in aligned_seqs.items():
-            if sid == ref_name:
+        ref_map = map_ref_positions(ref_aligned_seq)
+
+        result_table = []
+        for seq_id, aligned_seq in alignment_dict.items():
+            if seq_id == ref_seq.id:
                 continue
-            try:
-                score = aligner.align(ref_aligned, seq)[0].score
-                matches = sum(r == s and r != '-' for r, s in zip(ref_aligned, seq))
-                identity = (matches / len(ref_aligned)) * 100
-                aa_diff = {}
-                for p in positions:
-                    align_idx = [i for i, res in enumerate(ref_aligned) if res != '-']
-                    if p <= len(align_idx):
-                        idx = align_idx[p-1]
-                        aa_diff[f"RefPos {p} (Align {idx+1})"] = f"{ref_aligned[idx]} → {seq[idx]}"
-                    else:
-                        aa_diff[f"RefPos {p}"] = "Out of range"
-                aa_table.append({
-                    "Sample": sid,
-                    "Identity %": round(identity, 2),
-                    **aa_diff
-                })
-            except Exception as e:
-                aa_table.append({
-                    "Sample": sid,
-                    "Identity %": "Error",
-                    "Error": str(e)
-                })
 
-        result_df = pd.DataFrame(aa_table)
-        st.dataframe(result_df, use_container_width=True)
+            identity = compute_identity(ref_aligned_seq, aligned_seq)
+            result = {
+                "ID": seq_id,
+                "Identity %": identity
+            }
+            for pos in aa_positions:
+                align_idx = ref_map.get(pos)
+                ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else '-'
+                test_aa = aligned_seq[align_idx] if align_idx is not None else '-'
+                result[f"Ref Pos {pos}"] = ref_aa
+                result[f"Test Pos {pos}"] = test_aa
+            result_table.append(result)
 
-        csv = result_df.to_csv(index=False).encode()
-        st.download_button("📥 Download CSV Report", csv, "pairwise_report.csv", "text/csv")
+        df_results = pd.DataFrame(result_table)
 
-        def highlight_identity(val):
-            if isinstance(val, (float, int)):
-                normalized = val / 100
-                color = cm.Blues(normalized)
-                rgba = f"rgba({int(color[0]*255)},{int(color[1]*255)},{int(color[2]*255)}, 0.6)"
-                return f"background-color: {rgba}"
-            return ""
+        def color_identity(val):
+            norm_val = val / 100
+            rgba = cm.Blues(norm_val)
+            return f"background-color: rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
 
-        st.dataframe(result_df.style.applymap(highlight_identity, subset=["Identity %"]))
+        styled_df = df_results.style.applymap(color_identity, subset=["Identity %"])
+        st.dataframe(styled_df, use_container_width=True)
+
+        csv = df_results.to_csv(index=False).encode()
+        st.download_button("Download Pairwise Comparison CSV", csv, "pairwise_comparison.csv", "text/csv")
