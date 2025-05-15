@@ -15,6 +15,21 @@ import base64
 st.set_page_config(page_title="Amino Acid Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
 
+st.markdown("""
+### 🧭 Application Flow
+1. **Upload Excel File**: Provide sequence and sample metadata.
+2. **Select Name & Sequence Columns**: Choose how each sequence is labeled and where the amino acid data is.
+3. **Choose Sequences**: Either by row range or specific row numbers.
+4. **Input Amino Acid Positions**: These are alignment-based positions used for comparison against the reference.
+5. **Provide Reference Sequence**: Selected from Excel or uploaded as FASTA.
+6. **Alignment via Clustal Omega Web API**: Protein sequences aligned with default Clustal Omega settings.
+7. **Pairwise Identity Calculation**: Identity % is based on *total alignment length*, including gaps (Jalview-style).
+8. **Amino Acid Comparison at Specific Positions**: Shows differences at positions input by the user.
+9. **Downloadable Outputs**: Alignment image, CLUSTAL file, pairwise identity CSV.
+
+> **Note**: Jalview-style identity = `# exact matches / alignment length (including gaps)`
+""")
+
 uploaded_excel = st.file_uploader("Upload Excel Spreadsheet (.xlsx)", type=["xlsx"])
 uploaded_gene_db = st.file_uploader("Upload Gene Type Database (.csv) (Optional)", type=["csv"])
 ref_seq = None
@@ -166,21 +181,18 @@ if uploaded_excel:
                     continue
 
                 match_count = 0
-                valid_count = 0
+                total_length = len(ref_aln_seq)
 
                 for ref_aa, test_aa in zip(ref_aln_seq, query_seq):
-                    if ref_aa == '-' or test_aa == '-':
-                        continue
-                    valid_count += 1
                     if ref_aa.upper() == test_aa.upper():
                         match_count += 1
 
-                percent_id = round((match_count / valid_count) * 100, 2) if valid_count > 0 else 0.0
+                percent_id = round((match_count / total_length) * 100, 2) if total_length > 0 else 0.0
 
                 scores.append({
                     "Name": record.id,
                     "Identity %": percent_id,
-                    "Aligned Length": valid_count,
+                    "Aligned Length": total_length,
                     "Matches": match_count
                 })
 
