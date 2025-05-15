@@ -163,13 +163,18 @@ if uploaded_excel:
         if not reference_record:
             st.warning(f"Reference sequence not found in alignment. Tried matching '{ref_seq.id}'")
         else:
+            def clean_sequence(seq):
+                return ''.join([aa for aa in seq if aa in matrix.alphabet or aa == '-'])
+
             scores = []
+            ref_clean = clean_sequence(str(reference_record.seq))
             for record in aligned_records:
                 if record.id == reference_record.id:
                     continue
                 try:
-                    score = aligner.score(reference_record.seq, record.seq)
-                    max_score = aligner.score(reference_record.seq, reference_record.seq)
+                    seq_clean = clean_sequence(str(record.seq))
+                    score = aligner.score(ref_clean, seq_clean)
+                    max_score = aligner.score(ref_clean, ref_clean)
                     percent_identity = round((score / max_score) * 100, 2) if max_score > 0 else 0.0
                     scores.append({"Name": record.id, "Identity %": percent_identity})
                 except Exception as e:
