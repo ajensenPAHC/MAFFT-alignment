@@ -3,9 +3,8 @@ import pandas as pd
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio import pairwise2
 from Bio.Align import substitution_matrices
-from Bio.pairwise2 import format_alignment
+from Bio.Align import PairwiseAligner
 import tempfile
 import requests
 import time
@@ -150,8 +149,13 @@ if uploaded_excel:
         st.success("Alignment complete! Proceeding to analysis.")
 
         # === Enhanced Pairwise Identity Analysis ===
-        st.subheader("Step 5: Pairwise Identity with BLOSUM62")
-        blosum62 = substitution_matrices.load("BLOSUM62")
+        st.subheader("Step 5: Pairwise Identity with Substitution Matrix")
+        matrix = substitution_matrices.load("BLOSUM62")
+        aligner = PairwiseAligner()
+        aligner.substitution_matrix = matrix
+        aligner.open_gap_score = -10
+        aligner.extend_gap_score = -1
+        aligner.mode = 'global'
 
         aligned_records = list(SeqIO.parse(aligned_file_path, "clustal"))
         reference_record = next((r for r in aligned_records if r.id == ref_seq.id), None)
@@ -159,25 +163,18 @@ if uploaded_excel:
         if not reference_record:
             st.warning(f"Reference sequence not found in alignment. Tried matching '{ref_seq.id}'")
         else:
-            def safe_identity(seq1, seq2, matrix):
-                try:
-                    alignment = pairwise2.align.globalds(seq1, seq2, matrix, -10, -1, one_alignment_only=True)[0]
-                    matches = sum((a == b) and (a in matrix.alphabet) for a, b in zip(alignment.seqA, alignment.seqB))
-                    valid_length = sum((a in matrix.alphabet and b in matrix.alphabet) for a, b in zip(alignment.seqA, alignment.seqB))
-                    return round((matches / valid_length) * 100, 2) if valid_length else 0.0
-                except Exception as e:
-                    return None, str(e)
-
             scores = []
             for record in aligned_records:
                 if record.id == reference_record.id:
                     continue
-                identity = safe_identity(reference_record.seq, record.seq, blosum62)
-                if isinstance(identity, tuple):
+                try:
+                    score = aligner.score(reference_record.seq, record.seq)
+                    max_score = aligner.score(reference_record.seq, reference_record.seq)
+                    percent_identity = round((score / max_score) * 100, 2) if max_score > 0 else 0.0
+                    scores.append({"Name": record.id, "Identity %": percent_identity})
+                except Exception as e:
                     scores.append({"Name": record.id, "Identity %": "Error"})
-                    st.error(f"Pairwise comparison failed for {record.id}: {identity[1]}")
-                else:
-                    scores.append({"Name": record.id, "Identity %": identity})
+                    st.error(f"Pairwise comparison failed for {record.id}: {e}")
 
             result_df = pd.DataFrame(scores)
             st.dataframe(result_df.style.background_gradient(cmap='Blues'), use_container_width=True)
