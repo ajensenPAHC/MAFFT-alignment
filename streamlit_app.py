@@ -174,7 +174,18 @@ if uploaded_file:
 
         ref_map = map_ref_positions(ref_aligned_seq)
 
-        results = []
+        full_results = []
+        ref_row = {
+            "ID": ref_seq.id,
+            "MSA Identity %": 100.0,
+            "Pairwise Identity %": 100.0,
+        }
+        for pos in aa_positions:
+            align_idx = ref_map.get(pos)
+            col_label = f"Pos {pos} (Ref:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{align_idx if align_idx is not None else 'N/A'})"
+            ref_row[col_label] = ref_aligned_seq[align_idx] if align_idx is not None else '[Invalid]'
+        full_results.append(ref_row)
+
         for rec in alignments:
             if rec.id == ref_seq.id:
                 continue
@@ -195,9 +206,9 @@ if uploaded_file:
                 col_label = f"Pos {pos} (Ref:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{align_idx if align_idx is not None else 'N/A'})"
                 row[col_label] = str(rec.seq)[align_idx] if align_idx is not None else '[Invalid]'
 
-            results.append(row)
+            full_results.append(row)
 
-        df_results = pd.DataFrame(results)
+        df_results = pd.DataFrame(full_results)
 
         sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Pairwise Identity %"])
         df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
