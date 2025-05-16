@@ -18,7 +18,7 @@ st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
 
 st.markdown("""
-### 🗬 Application Flow
+### 🔬 Application Flow
 1. **Upload Excel File**: Provide sequence and sample metadata.
 2. **Select Name & Sequence Columns**: Choose how each sequence is labeled and where the amino acid data is.
 3. **Choose Sequences**: Either by row range or specific row numbers.
@@ -58,8 +58,9 @@ if uploaded_file:
 
     selection_type = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
     if selection_type == "Range":
-        row_range = st.slider("Select row range to process (starting from row 2):", 2, len(df) + 1, (2, len(df) + 1))
-        selected_rows = list(range(row_range[0], row_range[1] + 1))
+        start_row = st.number_input("Start row (≥2)", min_value=2, step=1)
+        end_row = st.number_input("End row", min_value=start_row, step=1)
+        selected_rows = list(range(start_row, end_row + 1))
     else:
         selected_rows_input = st.text_input("Enter specific rows (comma-separated)", "2,3,4")
         selected_rows = [int(x.strip()) for x in selected_rows_input.split(",") if x.strip().isdigit()]
@@ -98,11 +99,18 @@ if uploaded_file:
                 records.append(record)
 
         if use_uploaded_ref and ref_fasta:
-            ref_seq = list(SeqIO.parse(ref_fasta, "fasta"))[0]
+            try:
+                ref_seq = list(SeqIO.parse(ref_fasta, "fasta"))[0]
+            except Exception as e:
+                st.error(f"Error reading uploaded FASTA: {e}")
+                st.stop()
 
         if not ref_seq:
             st.error("Reference sequence not found. Please verify selection or upload.")
             st.stop()
+
+        st.markdown("#### Reference Sequence (before alignment)")
+        st.code(str(ref_seq.seq), language="text")
 
         all_records = [ref_seq] + records
 
@@ -126,17 +134,24 @@ if uploaded_file:
             'email': 'anonymous@example.com'
         })
 
+        if response.status_code != 200:
+            st.error("Failed to submit job to Clustal Omega. Please try again later.")
+            st.stop()
+
         job_id = response.text.strip()
         status_url = f"https://www.ebi.ac.uk/Tools/services/rest/clustalo/status/{job_id}"
 
-        for _ in range(40):
-            status = requests.get(status_url).text.strip()
-            if status == "FINISHED":
-                break
-            time.sleep(3)
+        with st.spinner("Waiting for Clustal Omega to complete alignment..."):
+            for _ in range(40):
+                status = requests.get(status_url).text.strip()
+                if status == "FINISHED":
+                    break
+                time.sleep(3)
 
         alignment = requests.get(f"{result_url}/{job_id}/aln-clustal_num").text
-        st.code(alignment, language="text")
+
+        if st.checkbox("Show raw CLUSTAL alignment"):
+            st.code(alignment, language="text")
 
         clustal_io = StringIO(alignment)
         alignments = list(SeqIO.parse(clustal_io, "clustal"))
@@ -164,33 +179,34 @@ if uploaded_file:
 
         ref_map = map_ref_positions(ref_aligned_seq)
 
-        result_table = []
+        results = []
         for rec in alignments:
             if rec.id == ref_seq.id:
                 continue
 
-            msa_identity = compute_identity(ref_aligned_seq, str(rec.seq))
+            row = {
+                "ID": rec.id,
+                "MSA Identity %": compute_identity(ref_aligned_seq, str(rec.seq))
+            }
+
             try:
                 pairwise_score = aligner.align(str(ref_seq.seq), str(rec.seq).replace('-', ''))[0].score
-                pairwise_identity = round(pairwise_score / len(ref_seq.seq), 2)
-            except Exception as e:
-                pairwise_identity = 0.0
+                row["Pairwise Identity %"] = round(pairwise_score / len(ref_seq.seq), 2)
+            except:
+                row["Pairwise Identity %"] = 0.0
 
-            row = {"ID": rec.id}
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
-                ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else '-'
-                test_aa = str(rec.seq)[align_idx] if align_idx is not None else '-'
-                row[f"Ref Pos {pos}"] = ref_aa
+                row[f"Ref Pos {pos}"] = ref_aligned_seq[align_idx] if align_idx is not None else '[Invalid]'
                 row[f"Align Pos {pos}"] = align_idx if align_idx is not None else 'N/A'
-                row[f"Test Pos {pos}"] = test_aa
+                row[f"Test Pos {pos}"] = str(rec.seq)[align_idx] if align_idx is not None else '[Invalid]'
 
-            row["MSA Identity %"] = msa_identity
-            row["Pairwise Identity %"] = pairwise_identity
+            results.append(row)
 
-            result_table.append(row)
+        df_results = pd.DataFrame(results)
 
-        df_results = pd.DataFrame(result_table)
+        sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Pairwise Identity %"])
+        df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
 
         def color_identity(val):
             norm_val = val / 100
