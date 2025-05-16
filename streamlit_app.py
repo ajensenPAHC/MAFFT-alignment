@@ -48,7 +48,7 @@ if uploaded_file:
     excel = pd.ExcelFile(uploaded_file)
     sheet_name = st.selectbox("Select sheet", excel.sheet_names)
     df = excel.parse(sheet_name)
-    df.index += 2  # Shift for better human readability
+    df.index += 2
 
     st.write("Preview of selected sheet:")
     st.dataframe(df.head(10))
@@ -58,9 +58,8 @@ if uploaded_file:
 
     selection_type = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
     if selection_type == "Range":
-        start_row = st.number_input("Start row (≥2)", min_value=2, step=1)
-        end_row = st.number_input("End row", min_value=start_row, step=1)
-        selected_rows = list(range(start_row, end_row + 1))
+        row_range = st.slider("Select row range (inclusive)", min_value=2, max_value=int(df.index.max()), value=(2, 5))
+        selected_rows = list(range(row_range[0], row_range[1] + 1))
     else:
         selected_rows_input = st.text_input("Enter specific rows (comma-separated)", "2,3,4")
         selected_rows = [int(x.strip()) for x in selected_rows_input.split(",") if x.strip().isdigit()]
@@ -109,9 +108,6 @@ if uploaded_file:
             st.error("Reference sequence not found. Please verify selection or upload.")
             st.stop()
 
-        st.markdown("#### Reference Sequence (before alignment)")
-        st.code(str(ref_seq.seq), language="text")
-
         all_records = [ref_seq] + records
 
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
@@ -149,9 +145,8 @@ if uploaded_file:
                 time.sleep(3)
 
         alignment = requests.get(f"{result_url}/{job_id}/aln-clustal_num").text
-
-        if st.checkbox("Show raw CLUSTAL alignment"):
-            st.code(alignment, language="text")
+        st.subheader("Alignment Preview")
+        st.code(alignment, language="text")
 
         clustal_io = StringIO(alignment)
         alignments = list(SeqIO.parse(clustal_io, "clustal"))
@@ -197,9 +192,8 @@ if uploaded_file:
 
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
-                row[f"Ref Pos {pos}"] = ref_aligned_seq[align_idx] if align_idx is not None else '[Invalid]'
-                row[f"Align Pos {pos}"] = align_idx if align_idx is not None else 'N/A'
-                row[f"Test Pos {pos}"] = str(rec.seq)[align_idx] if align_idx is not None else '[Invalid]'
+                col_label = f"Pos {pos} (Ref:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{align_idx if align_idx is not None else 'N/A'})"
+                row[col_label] = str(rec.seq)[align_idx] if align_idx is not None else '[Invalid]'
 
             results.append(row)
 
