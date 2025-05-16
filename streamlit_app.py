@@ -44,6 +44,17 @@ def clean_sequence(seq):
     seq = seq.upper()
     return ''.join([aa for aa in seq if aa in valid_aa_chars])
 
+def compute_effective_identity(seq1, seq2):
+    matches = 0
+    effective_len = 0
+    for a, b in zip(seq1, seq2):
+        if a == '-' or b == '-':
+            continue
+        effective_len += 1
+        if a == b:
+            matches += 1
+    return round((matches / effective_len) * 100, 2) if effective_len > 0 else 0.0, matches, effective_len
+
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
 ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format)", type=[".fasta"])
 
@@ -180,7 +191,7 @@ if uploaded_file:
             try:
                 aligned_score = aligner.align(seq1, seq2)[0].score
                 return round(aligned_score / len(seq1), 2)
-            except Exception as e:
+            except Exception:
                 return 0.0
 
         alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
@@ -198,33 +209,26 @@ if uploaded_file:
 
         full_results = []
 
-        ref_row = {
-            "ID": ref_seq.id,
-            "MSA Identity %": 100.0,
-            "Gapped Identity %": 100.0,
-            "Alignment Score / Len": 100.0,
-        }
-        for pos in aa_positions:
-            align_idx = ref_map.get(pos)
-            label = f"Pos {pos} (Ref:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{(align_idx+1) if align_idx is not None else 'N/A'})"
-            ref_row[label] = ref_aligned_seq[align_idx] if align_idx is not None else '[Invalid]'
-        full_results.append(ref_row)
-
         for rec in alignments:
-            if rec.id == ref_seq.id:
-                continue
-
             test_seq = str(rec.seq)
+            msa_identity = compute_identity(ref_aligned_seq, test_seq)
+            gapped_identity = compute_gapped_identity(ref_aligned_seq, test_seq)
+            alignment_score = compute_gap_penalty_identity(ref_aligned_seq, test_seq)
+            eff_identity, match_count, eff_len = compute_effective_identity(ref_aligned_seq, test_seq)
+
             row = {
                 "ID": rec.id,
-                "MSA Identity %": compute_identity(ref_aligned_seq, test_seq),
-                "Gapped Identity %": compute_gapped_identity(ref_aligned_seq, test_seq),
-                "Alignment Score / Len": compute_gap_penalty_identity(ref_aligned_seq, test_seq),
+                "MSA Identity %": msa_identity,
+                "Gapped Identity %": gapped_identity,
+                "Alignment Score / Len": alignment_score,
+                "Effective Identity %": eff_identity,
+                "Effective Matches": match_count,
+                "Effective Aligned Positions": eff_len,
             }
 
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
-                label = f"Pos {pos} (Ref:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{(align_idx+1) if align_idx is not None else 'N/A'})"
+                label = f"Pos {pos} (Aligned:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{(align_idx+1) if align_idx is not None else 'N/A'})"
                 row[label] = test_seq[align_idx] if align_idx is not None else '[Invalid]'
 
             full_results.append(row)
@@ -232,8 +236,9 @@ if uploaded_file:
         df_results = pd.DataFrame(full_results)
         df_results = df_results.astype(str)
 
-        sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Gapped Identity %", "Alignment Score / Len"])
+        sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Gapped Identity %", "Effective Identity %", "Alignment Score / Len"])
         df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
+        df_results = pd.concat([df_results[df_results['ID'] == ref_seq.id], df_results[df_results['ID'] != ref_seq.id]])
 
         def color_identity(val):
             try:
@@ -243,7 +248,7 @@ if uploaded_file:
             except:
                 return ""
 
-        styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Alignment Score / Len"])
+        styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Effective Identity %", "Alignment Score / Len"])
         st.dataframe(styled_df, use_container_width=True)
 
         csv = df_results.to_csv(index=False).encode()
