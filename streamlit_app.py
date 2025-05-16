@@ -191,7 +191,8 @@ if uploaded_file:
     try:
         aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
         return round(aligned_score / len(seq1.replace('-', '')), 2)
-    except Exception:
+    except Exception as e:
+        print(f"Alignment error: {e}")
         return 0.0
 
         alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
@@ -248,7 +249,8 @@ if uploaded_file:
         bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
         text_color = "#000" if val > 85 else "#FFF"
         return f"background-color: {bg_color}; color: {text_color}"
-    except Exception:
+    except Exception as e:
+        print(f"Color mapping error: {e}")
         return ""
 
         styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Alignment Score / Len"])
