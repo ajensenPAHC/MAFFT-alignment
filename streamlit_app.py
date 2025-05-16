@@ -38,6 +38,12 @@ aligner.mode = 'global'
 aligner.open_gap_score = -10
 aligner.extend_gap_score = -0.5
 
+valid_aa_chars = set("ACDEFGHIKLMNPQRSTVWY-")
+
+def clean_sequence(seq):
+    seq = seq.upper()
+    return ''.join([aa for aa in seq if aa in valid_aa_chars])
+
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
 ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format)", type=[".fasta"])
 
@@ -87,8 +93,12 @@ if uploaded_file:
         for idx in selected_rows:
             row = df.loc[idx]
             name = "_".join([str(row[col]) for col in name_cols])
-            sequence = str(row[seq_col]).replace("\n", "").strip()
-            record = SeqRecord(Seq(sequence), id=name, description="")
+            raw_sequence = str(row[seq_col]).replace("\n", "").strip()
+            cleaned_seq = clean_sequence(raw_sequence)
+            if not cleaned_seq:
+                st.warning(f"Sequence at row {idx} for '{name}' was empty or invalid and will be skipped.")
+                continue
+            record = SeqRecord(Seq(cleaned_seq), id=name, description="")
             if not use_uploaded_ref and idx == ref_row:
                 ref_seq = record
             else:
@@ -97,6 +107,7 @@ if uploaded_file:
         if use_uploaded_ref and ref_fasta:
             try:
                 ref_seq = list(SeqIO.parse(ref_fasta, "fasta"))[0]
+                ref_seq.seq = Seq(clean_sequence(str(ref_seq.seq)))
             except Exception as e:
                 st.error(f"Error reading uploaded FASTA: {e}")
                 st.stop()
@@ -166,8 +177,11 @@ if uploaded_file:
             return round((matches / len(pairs)) * 100, 2)
 
         def compute_gap_penalty_identity(seq1, seq2):
-            aligned_score = aligner.align(seq1, seq2)[0].score
-            return round(aligned_score / len(seq1), 2)
+            try:
+                aligned_score = aligner.align(seq1, seq2)[0].score
+                return round(aligned_score / len(seq1), 2)
+            except Exception as e:
+                return 0.0
 
         alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
 
@@ -216,10 +230,7 @@ if uploaded_file:
             full_results.append(row)
 
         df_results = pd.DataFrame(full_results)
-        df_results["ID"] = df_results["ID"].astype(str)
-        for col in df_results.columns:
-            if col.startswith("Pos"):
-                df_results[col] = df_results[col].astype(str)
+        df_results = df_results.astype(str)
 
         sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Gapped Identity %", "Alignment Score / Len"])
         df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
