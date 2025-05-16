@@ -44,16 +44,16 @@ def clean_sequence(seq):
     seq = seq.upper()
     return ''.join([aa for aa in seq if aa in valid_aa_chars])
 
-def compute_effective_identity(seq1, seq2):
+def compute_jalview_identity(seq1, seq2):
     matches = 0
-    effective_len = 0
+    aligned = 0
     for a, b in zip(seq1, seq2):
-        if a == '-' or b == '-':
-            continue
-        effective_len += 1
+        if a == '-' and b == '-':
+            continue  # skip gap-gap columns
+        aligned += 1
         if a == b:
             matches += 1
-    return round((matches / effective_len) * 100, 2) if effective_len > 0 else 0.0, matches, effective_len
+    return round((matches / aligned) * 100, 2) if aligned > 0 else 0.0, matches, aligned
 
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
 ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format)", type=[".fasta"])
@@ -214,14 +214,14 @@ if uploaded_file:
             msa_identity = compute_identity(ref_aligned_seq, test_seq)
             gapped_identity = compute_gapped_identity(ref_aligned_seq, test_seq)
             alignment_score = compute_gap_penalty_identity(ref_aligned_seq, test_seq)
-            eff_identity, match_count, eff_len = compute_effective_identity(ref_aligned_seq, test_seq)
+            eff_identity, match_count, eff_len = compute_jalview_identity(ref_aligned_seq, test_seq)
 
             row = {
                 "ID": rec.id,
                 "MSA Identity %": msa_identity,
                 "Gapped Identity %": gapped_identity,
                 "Alignment Score / Len": alignment_score,
-                "Effective Identity %": eff_identity,
+                "Jalview Identity %": eff_identity,
                 "Effective Matches": match_count,
                 "Effective Aligned Positions": eff_len,
             }
@@ -236,7 +236,7 @@ if uploaded_file:
         df_results = pd.DataFrame(full_results)
         df_results = df_results.astype(str)
 
-        sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Gapped Identity %", "Effective Identity %", "Alignment Score / Len"])
+        sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Alignment Score / Len"])
         df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
         df_results = pd.concat([df_results[df_results['ID'] == ref_seq.id], df_results[df_results['ID'] != ref_seq.id]])
 
@@ -248,7 +248,7 @@ if uploaded_file:
             except:
                 return ""
 
-        styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Effective Identity %", "Alignment Score / Len"])
+        styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Alignment Score / Len"])
         st.dataframe(styled_df, use_container_width=True)
 
         csv = df_results.to_csv(index=False).encode()
