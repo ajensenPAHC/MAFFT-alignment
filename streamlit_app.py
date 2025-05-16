@@ -190,7 +190,7 @@ if uploaded_file:
         def compute_gap_penalty_identity(seq1, seq2):
     try:
         aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
-                return round(aligned_score / len(seq1), 2)
+        return round(aligned_score / len(seq1.replace('-', '')), 2)
             except Exception:
                 return 0.0
 
@@ -250,8 +250,6 @@ if uploaded_file:
         return f"background-color: {bg_color}; color: {text_color}"
     except:
         return ""
-            except:
-                return ""
 
         styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Alignment Score / Len"])
         st.dataframe(styled_df, use_container_width=True)
