@@ -209,16 +209,23 @@ if uploaded_file:
             full_results.append(row)
 
         df_results = pd.DataFrame(full_results)
+        df_results["ID"] = df_results["ID"].astype(str)
+        for col in df_results.columns:
+            if col.startswith("Pos"):
+                df_results[col] = df_results[col].astype(str)
 
         sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Pairwise Identity %"])
         df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
 
         def color_identity(val):
-            norm_val = val / 100
-            rgba = cm.Blues(norm_val)
-            return f"background-color: rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
+            try:
+                norm_val = float(val) / 100
+                rgba = cm.Blues(norm_val)
+                return f"background-color: rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
+            except:
+                return ""
 
-        styled_df = df_results.style.applymap(color_identity, subset=["MSA Identity %", "Pairwise Identity %"])
+        styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Pairwise Identity %"])
         st.dataframe(styled_df, use_container_width=True)
 
         csv = df_results.to_csv(index=False).encode()
