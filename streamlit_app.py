@@ -188,8 +188,8 @@ if uploaded_file:
             return round((matches / len(pairs)) * 100, 2)
 
         def compute_gap_penalty_identity(seq1, seq2):
-            try:
-                aligned_score = aligner.align(seq1, seq2)[0].score
+    try:
+        aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
                 return round(aligned_score / len(seq1), 2)
             except Exception:
                 return 0.0
@@ -241,10 +241,15 @@ if uploaded_file:
         df_results = pd.concat([df_results[df_results['ID'] == ref_seq.id], df_results[df_results['ID'] != ref_seq.id]])
 
         def color_identity(val):
-            try:
-                norm_val = float(val) / 100
-                rgba = cm.Blues(norm_val)
-                return f"background-color: rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
+    try:
+        val = float(val)
+        norm_val = val / 100
+        rgba = cm.Blues(norm_val)
+        bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
+        text_color = "black" if val > 85 else "white"
+        return f"background-color: {bg_color}; color: {text_color}"
+    except:
+        return ""
             except:
                 return ""
 
