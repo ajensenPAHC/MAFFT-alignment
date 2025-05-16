@@ -27,12 +27,9 @@ st.markdown("""
 6. **Alignment via Clustal Omega Web API**: Protein sequences aligned with default Clustal Omega settings.
 7. **Identity Calculations**:
    - **MSA Identity %**: Jalview-style match rate using ClustalO alignment.
-   - **Pairwise Identity %**: Uses Biopython `Align.PairwiseAligner` with BLOSUM62 scoring matrix.
+   - **Pairwise Identity Metrics**: Custom scoring comparisons between reference and test sequences.
 8. **Amino Acid Comparison at Specific Positions**: Shows differences at positions input by the user.
 9. **Downloadable Outputs**: Alignment image, CLUSTAL file, identity comparison CSV.
-
-> **MSA Identity %** = `# exact matches / alignment length (including gaps)`
-> **Pairwise Identity %** = BLOSUM62-based scoring alignment to reference (one-on-one)
 """)
 
 aligner = Align.PairwiseAligner()
@@ -156,12 +153,23 @@ if uploaded_file:
             st.error("Reference sequence not found in alignment.")
             st.stop()
 
-        alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
-
         def compute_identity(seq1, seq2):
             matches = sum(a == b for a, b in zip(seq1, seq2))
             aligned_length = len(seq1)
             return round((matches / aligned_length) * 100, 2)
+
+        def compute_gapped_identity(seq1, seq2):
+            pairs = [(a, b) for a, b in zip(seq1, seq2) if a != '-' and b != '-']
+            if not pairs:
+                return 0.0
+            matches = sum(a == b for a, b in pairs)
+            return round((matches / len(pairs)) * 100, 2)
+
+        def compute_gap_penalty_identity(seq1, seq2):
+            aligned_score = aligner.align(seq1, seq2)[0].score
+            return round(aligned_score / len(seq1), 2)
+
+        alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
 
         def map_ref_positions(seq):
             mapping = {}
@@ -175,36 +183,35 @@ if uploaded_file:
         ref_map = map_ref_positions(ref_aligned_seq)
 
         full_results = []
+
         ref_row = {
             "ID": ref_seq.id,
             "MSA Identity %": 100.0,
-            "Pairwise Identity %": 100.0,
+            "Gapped Identity %": 100.0,
+            "Alignment Score / Len": 100.0,
         }
         for pos in aa_positions:
             align_idx = ref_map.get(pos)
-            col_label = f"Pos {pos} (Ref:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{align_idx if align_idx is not None else 'N/A'})"
-            ref_row[col_label] = ref_aligned_seq[align_idx] if align_idx is not None else '[Invalid]'
+            label = f"Pos {pos} (Ref:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{(align_idx+1) if align_idx is not None else 'N/A'})"
+            ref_row[label] = ref_aligned_seq[align_idx] if align_idx is not None else '[Invalid]'
         full_results.append(ref_row)
 
         for rec in alignments:
             if rec.id == ref_seq.id:
                 continue
 
+            test_seq = str(rec.seq)
             row = {
                 "ID": rec.id,
-                "MSA Identity %": compute_identity(ref_aligned_seq, str(rec.seq))
+                "MSA Identity %": compute_identity(ref_aligned_seq, test_seq),
+                "Gapped Identity %": compute_gapped_identity(ref_aligned_seq, test_seq),
+                "Alignment Score / Len": compute_gap_penalty_identity(ref_aligned_seq, test_seq),
             }
-
-            try:
-                pairwise_score = aligner.align(str(ref_seq.seq), str(rec.seq).replace('-', ''))[0].score
-                row["Pairwise Identity %"] = round(pairwise_score / len(ref_seq.seq), 2)
-            except:
-                row["Pairwise Identity %"] = 0.0
 
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
-                col_label = f"Pos {pos} (Ref:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{align_idx if align_idx is not None else 'N/A'})"
-                row[col_label] = str(rec.seq)[align_idx] if align_idx is not None else '[Invalid]'
+                label = f"Pos {pos} (Ref:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{(align_idx+1) if align_idx is not None else 'N/A'})"
+                row[label] = test_seq[align_idx] if align_idx is not None else '[Invalid]'
 
             full_results.append(row)
 
@@ -214,7 +221,7 @@ if uploaded_file:
             if col.startswith("Pos"):
                 df_results[col] = df_results[col].astype(str)
 
-        sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Pairwise Identity %"])
+        sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Gapped Identity %", "Alignment Score / Len"])
         df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
 
         def color_identity(val):
@@ -225,7 +232,7 @@ if uploaded_file:
             except:
                 return ""
 
-        styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Pairwise Identity %"])
+        styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Alignment Score / Len"])
         st.dataframe(styled_df, use_container_width=True)
 
         csv = df_results.to_csv(index=False).encode()
