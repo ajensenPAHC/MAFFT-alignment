@@ -91,7 +91,7 @@ def color_identity(val):
         norm_val = val / 100
         rgba = cm.Blues(norm_val)
         bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
-        text_color = "#000" if val > 85 else "#FFF"
+        text_color = "#FFF" if val > 85 else "#000"
         return f"background-color: {bg_color}; color: {text_color}"
     except Exception as e:
         print(f"[color_identity] Color mapping error: {e}")
