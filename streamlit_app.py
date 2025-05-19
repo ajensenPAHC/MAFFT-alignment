@@ -55,6 +55,48 @@ def compute_jalview_identity(seq1, seq2):
             matches += 1
     return round((matches / aligned) * 100, 2) if aligned > 0 else 0.0, matches, aligned
 
+def compute_identity(seq1, seq2):
+    matches = sum(a == b for a, b in zip(seq1, seq2))
+    aligned_length = len(seq1)
+    return round((matches / aligned_length) * 100, 2)
+
+def compute_gapped_identity(seq1, seq2):
+    pairs = [(a, b) for a, b in zip(seq1, seq2) if a != '-' and b != '-']
+    if not pairs:
+        return 0.0
+    matches = sum(a == b for a, b in pairs)
+    return round((matches / len(pairs)) * 100, 2)
+
+def compute_gap_penalty_identity(seq1, seq2):
+    try:
+        aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
+        score_ratio = round(aligned_score / len(seq1.replace('-', '')), 2)
+        return score_ratio
+    except Exception as e:
+        print(f"[compute_gap_penalty_identity] Alignment error: {e}")
+        return 0.0
+
+def map_ref_positions(seq):
+    mapping = {}
+    pos = 0
+    for idx, aa in enumerate(seq):
+        if aa != '-':
+            pos += 1
+            mapping[pos] = idx
+    return mapping
+
+def color_identity(val):
+    try:
+        val = float(val)
+        norm_val = val / 100
+        rgba = cm.Blues(norm_val)
+        bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
+        text_color = "#000" if val > 85 else "#FFF"
+        return f"background-color: {bg_color}; color: {text_color}"
+    except Exception as e:
+        print(f"[color_identity] Color mapping error: {e}")
+        return ""
+
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
 ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format)", type=[".fasta"])
 
@@ -175,43 +217,10 @@ if uploaded_file:
             st.error("Reference sequence not found in alignment.")
             st.stop()
 
-        def compute_identity(seq1, seq2):
-            matches = sum(a == b for a, b in zip(seq1, seq2))
-            aligned_length = len(seq1)
-            return round((matches / aligned_length) * 100, 2)
-
-        def compute_gapped_identity(seq1, seq2):
-            pairs = [(a, b) for a, b in zip(seq1, seq2) if a != '-' and b != '-']
-            if not pairs:
-                return 0.0
-            matches = sum(a == b for a, b in pairs)
-            return round((matches / len(pairs)) * 100, 2)
-
-def compute_gap_penalty_identity(seq1, seq2):
-    # Fixed indentation block to resolve script errors
-    try:
-        aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
-        score_ratio = round(aligned_score / len(seq1.replace('-', '')), 2)
-        return score_ratio
-    except Exception as e:
-        print(f"[compute_gap_penalty_identity] Alignment error: {e}")
-        return 0.0
-
-alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
-
-        def map_ref_positions(seq):
-            mapping = {}
-            pos = 0
-            for idx, aa in enumerate(seq):
-                if aa != '-':
-                    pos += 1
-                    mapping[pos] = idx
-            return mapping
-
+        alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
         ref_map = map_ref_positions(ref_aligned_seq)
 
         full_results = []
-
         for rec in alignments:
             test_seq = str(rec.seq)
             msa_identity = compute_identity(ref_aligned_seq, test_seq)
@@ -243,17 +252,5 @@ alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
         df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
         df_results = pd.concat([df_results[df_results['ID'] == ref_seq.id], df_results[df_results['ID'] != ref_seq.id]])
 
-def color_identity(val):
-    # Adjusts color contrast for better readability
-    try:
-        val = float(val)
-        norm_val = val / 100
-        rgba = cm.Blues(norm_val)
-        bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
-        text_color = "#000" if val > 85 else "#FFF"
-        return f"background-color: {bg_color}; color: {text_color}"
-    except Exception as e:
-        print(f"[color_identity] Color mapping error: {e}")
-        return ""
-
-        
+        styled_df = df_results.style.applymap(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Alignment Score / Len"])
+        st.dataframe(styled_df, use_container_width=True)
