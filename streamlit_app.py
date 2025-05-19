@@ -188,14 +188,14 @@ if uploaded_file:
             return round((matches / len(pairs)) * 100, 2)
 
         def compute_gap_penalty_identity(seq1, seq2):
-    # Ensures scoring is gap-penalized based on alignment length
+    # Fixed indentation block to resolve script errors
     try:
         aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
         score_ratio = round(aligned_score / len(seq1.replace('-', '')), 2)
         return score_ratio
     except Exception as e:
         print(f"[compute_gap_penalty_identity] Alignment error: {e}")
-        return 0.0
+        return 0.0  # fallback
 
         alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
 
