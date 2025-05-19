@@ -188,9 +188,8 @@ if uploaded_file:
             return round((matches / len(pairs)) * 100, 2)
 
         def compute_gap_penalty_identity(seq1, seq2):
-    print("Debug: Def line reached")
+    print("FIXED INDENTATION: Entered compute_gap_penalty_identity")
     try:
-        print("Debug: Entered compute_gap_penalty_identity")
         print("Debug: Attempting alignment")
         aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
         print(f"Debug: Alignment score: {aligned_score}")
@@ -248,6 +247,7 @@ if uploaded_file:
         df_results = pd.concat([df_results[df_results['ID'] == ref_seq.id], df_results[df_results['ID'] != ref_seq.id]])
 
         def color_identity(val):
+    print("FIXED INDENTATION: Entered color_identity")
     try:
         val = float(val)
         norm_val = val / 100
