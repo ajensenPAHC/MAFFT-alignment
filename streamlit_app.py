@@ -188,6 +188,7 @@ if uploaded_file:
             return round((matches / len(pairs)) * 100, 2)
 
         def compute_gap_penalty_identity(seq1, seq2):
+    # Ensures scoring is gap-penalized based on alignment length
     try:
         aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
         score_ratio = round(aligned_score / len(seq1.replace('-', '')), 2)
@@ -243,6 +244,7 @@ if uploaded_file:
         df_results = pd.concat([df_results[df_results['ID'] == ref_seq.id], df_results[df_results['ID'] != ref_seq.id]])
 
         def color_identity(val):
+    # Adjusts color contrast for better readability
     try:
         val = float(val)
         norm_val = val / 100
