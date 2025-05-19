@@ -193,7 +193,7 @@ if uploaded_file:
         score_ratio = round(aligned_score / len(seq1.replace('-', '')), 2)
         return score_ratio
     except Exception as e:
-        print(f"Alignment error: {e}")
+        print(f"[compute_gap_penalty_identity] Alignment error: {e}")
         return 0.0
 
         alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
@@ -251,7 +251,7 @@ if uploaded_file:
         text_color = "#000" if val > 85 else "#FFF"
         return f"background-color: {bg_color}; color: {text_color}"
     except Exception as e:
-        print(f"Color mapping error: {e}")
+        print(f"[color_identity] Color mapping error: {e}")
         return ""
 
         styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Alignment Score / Len"])
