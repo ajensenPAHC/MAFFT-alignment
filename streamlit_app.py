@@ -188,9 +188,14 @@ if uploaded_file:
             return round((matches / len(pairs)) * 100, 2)
 
         def compute_gap_penalty_identity(seq1, seq2):
+    print("Debug: Entered compute_gap_penalty_identity")
     try:
+        print("Debug: Attempting alignment")
         aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
-        return round(aligned_score / len(seq1.replace('-', '')), 2)
+        print(f"Debug: Alignment score: {aligned_score}")
+        score_ratio = round(aligned_score / len(seq1.replace('-', '')), 2)
+        print(f"Debug: Score ratio: {score_ratio}")
+        return score_ratio
     except Exception as e:
         print(f"Alignment error: {e}")
         return 0.0
