@@ -243,7 +243,7 @@ if uploaded_file:
         df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
         df_results = pd.concat([df_results[df_results['ID'] == ref_seq.id], df_results[df_results['ID'] != ref_seq.id]])
 
-        def color_identity(val):
+def color_identity(val):
     # Adjusts color contrast for better readability
     try:
         val = float(val)
@@ -256,8 +256,4 @@ if uploaded_file:
         print(f"[color_identity] Color mapping error: {e}")
         return ""
 
-        styled_df = df_results.style.map(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Alignment Score / Len"])
-        st.dataframe(styled_df, use_container_width=True)
-
-        csv = df_results.to_csv(index=False).encode()
-        st.download_button("Download Comparison CSV", csv, "comparison_results.csv", "text/csv")
+        
