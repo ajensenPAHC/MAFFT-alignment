@@ -188,6 +188,7 @@ if uploaded_file:
             return round((matches / len(pairs)) * 100, 2)
 
         def compute_gap_penalty_identity(seq1, seq2):
+    print("Debug: Def line reached")
     try:
         print("Debug: Entered compute_gap_penalty_identity")
         print("Debug: Attempting alignment")
