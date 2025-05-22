@@ -49,10 +49,11 @@ def compute_jalview_identity(seq1, seq2):
     aligned = 0
     for a, b in zip(seq1, seq2):
         if a == '-' and b == '-':
-            continue  # skip gap-gap columns
-        aligned += 1
-        if a == b:
-            matches += 1
+            continue
+        if a != '-' and b != '-':
+            aligned += 1
+            if a == b:
+                matches += 1
     return round((matches / aligned) * 100, 2) if aligned > 0 else 0.0, matches, aligned
 
 def compute_identity(seq1, seq2):
@@ -91,7 +92,7 @@ def color_identity(val):
         norm_val = val / 100
         rgba = cm.Blues(norm_val)
         bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
-        text_color = "#FFF" if val > 85 else "#000"
+        text_color = "#FFF" if val == 100.0 else "#000"
         return f"background-color: {bg_color}; color: {text_color}"
     except Exception as e:
         print(f"[color_identity] Color mapping error: {e}")
