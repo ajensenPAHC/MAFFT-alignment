@@ -10,27 +10,10 @@ import requests
 import time
 from io import StringIO
 from matplotlib import cm
-from matplotlib import pyplot as plt
-import base64
 import re
 
 st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
-
-st.markdown("""
-### 🔬 Application Flow
-1. **Upload Excel File**: Provide sequence and sample metadata.
-2. **Select Name & Sequence Columns**: Choose how each sequence is labeled and where the amino acid data is.
-3. **Choose Sequences**: Either by row range or specific row numbers.
-4. **Input Amino Acid Positions**: These are alignment-based positions used for comparison against the reference.
-5. **Provide Reference Sequence**: Selected from Excel or uploaded as FASTA.
-6. **Alignment via Clustal Omega Web API**: Protein sequences aligned with default Clustal Omega settings.
-7. **Identity Calculations**:
-   - **MSA Identity %**: Jalview-style match rate using ClustalO alignment.
-   - **Pairwise Identity Metrics**: Custom scoring comparisons between reference and test sequences.
-8. **Amino Acid Comparison at Specific Positions**: Shows differences at positions input by the user.
-9. **Downloadable Outputs**: Alignment image, CLUSTAL file, identity comparison CSV.
-""")
 
 aligner = Align.PairwiseAligner()
 aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
@@ -49,11 +32,10 @@ def compute_jalview_identity(seq1, seq2):
     aligned = 0
     for a, b in zip(seq1, seq2):
         if a == '-' and b == '-':
-            continue
-        if a != '-' and b != '-':
-            aligned += 1
-            if a == b:
-                matches += 1
+            continue  # skip gap-gap columns
+        aligned += 1
+        if a == b:
+            matches += 1
     return round((matches / aligned) * 100, 2) if aligned > 0 else 0.0, matches, aligned
 
 def compute_identity(seq1, seq2):
@@ -92,7 +74,7 @@ def color_identity(val):
         norm_val = val / 100
         rgba = cm.Blues(norm_val)
         bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
-        text_color = "#FFF" if val == 100.0 else "#000"
+        text_color = "#FFF" if val >= 99.9 else "#000"
         return f"background-color: {bg_color}; color: {text_color}"
     except Exception as e:
         print(f"[color_identity] Color mapping error: {e}")
@@ -106,9 +88,6 @@ if uploaded_file:
     sheet_name = st.selectbox("Select sheet", excel.sheet_names)
     df = excel.parse(sheet_name)
     df.index += 2
-
-    st.write("Preview of selected sheet:")
-    st.dataframe(df.head(10))
 
     name_cols = st.multiselect("Select columns to create sequence names", df.columns)
     seq_col = st.selectbox("Select column for amino acid sequence", df.columns)
