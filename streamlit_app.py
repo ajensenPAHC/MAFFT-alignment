@@ -41,7 +41,7 @@ def compute_jalview_identity(seq1, seq2):
     return round((matches / aligned) * 100, 2) if aligned > 0 else 0.0, matches, aligned
 
 def compute_identity(seq1, seq2):
-    matches = sum(a == b for a in zip(seq1, seq2))
+    matches = sum(a == b for a, b in zip(seq1, seq2))
     aligned_length = len(seq1)
     return round((matches / aligned_length) * 100, 2)
 
@@ -64,12 +64,16 @@ def compute_gap_penalty_identity(seq1, seq2):
 def compute_pairwise_identity(ref_seq, test_seq):
     ref_seq = clean_sequence(ref_seq)
     test_seq = clean_sequence(test_seq)
-    alignment = aligner.align(ref_seq, test_seq)[0]
-    aligned_ref = alignment.aligned[0]
-    aligned_test = alignment.aligned[1]
-    matches = sum(ref_seq[start1:end1] == test_seq[start2:end2] for (start1, end1), (start2, end2) in zip(aligned_ref, aligned_test))
-    length = sum(end1 - start1 for (start1, end1) in aligned_ref)
-    return round((matches / length) * 100, 2) if length else 0.0
+    try:
+        alignment = aligner.align(ref_seq, test_seq)[0]
+        aligned_ref = alignment.aligned[0]
+        aligned_test = alignment.aligned[1]
+        matches = sum(ref_seq[start1:end1] == test_seq[start2:end2] for (start1, end1), (start2, end2) in zip(aligned_ref, aligned_test))
+        length = sum(end1 - start1 for (start1, end1) in aligned_ref)
+        return round((matches / length) * 100, 2) if length else 0.0
+    except Exception as e:
+        print(f"[compute_pairwise_identity] Error: {e}")
+        return 0.0
 
 def color_identity(val):
     try:
@@ -136,7 +140,7 @@ if uploaded_file:
 
         with open(fasta_path, 'r') as preview:
             st.subheader("🧾 Preview of FASTA File Sent to Alignment Server")
-            st.text_area("FASTA Preview", preview.read(), height=200)
+            st.text_area("FASTA Preview", preview.read(), height=300)
 
         with open(fasta_path, 'r') as f:
             seq_data = f.read()
@@ -170,11 +174,11 @@ if uploaded_file:
 
         if not aln_text.strip().startswith("CLUSTAL"):
             st.error("❌ Clustal Omega result is not a valid Clustal alignment.")
-            st.text_area("Raw Output", aln_text)
+            st.text_area("Raw Output", aln_text, height=300)
             st.stop()
 
         st.subheader("📌 Clustal Omega Alignment Preview")
-        st.text_area("Clustal Alignment", aln_text, height=300)
+        st.text_area("Clustal Alignment", aln_text, height=400)
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
