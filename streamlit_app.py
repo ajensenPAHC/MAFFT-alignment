@@ -12,6 +12,7 @@ import time
 from io import StringIO
 from matplotlib import cm
 import re
+import os
 
 st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
@@ -96,6 +97,7 @@ if uploaded_file:
     excel = pd.ExcelFile(uploaded_file)
     sheet_name = st.selectbox("Select sheet", excel.sheet_names)
     df = excel.parse(sheet_name)
+    df = df.astype(str)  # Ensure all values are strings for compatibility
     df.index += 2
 
     st.subheader("📋 Excel Preview")
@@ -134,12 +136,13 @@ if uploaded_file:
             ref_idx = selected_rows.index(ref_row)
             ref_record = records[ref_idx]
 
+        all_records = [ref_record] + [r for r in records if r.id != ref_record.id]
+
         # Save to temp FASTA file
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
-            SeqIO.write(records, fasta_file, "fasta")
+            SeqIO.write(all_records, fasta_file, "fasta")
             fasta_path = fasta_file.name
 
-        # Submit to MAFFT
         with open(fasta_path, 'rb') as f:
             files = {'file': f}
             response = requests.post("https://www.ebi.ac.uk/Tools/services/rest/mafft/run", files=files)
@@ -148,7 +151,6 @@ if uploaded_file:
                 st.stop()
             job_id = response.text.strip()
 
-        # Wait for result
         status = "RUNNING"
         while status in ["RUNNING", "PENDING"]:
             time.sleep(2)
