@@ -98,7 +98,7 @@ def color_identity(val):
         norm_val = val / 100
         rgba = cm.Blues(norm_val)
         bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
-        text_color = "#FFF" if val >= 99.9 else "#000"
+        text_color = "#FFF" if val >= 70 else "#000"
         return f"background-color: {bg_color}; color: {text_color}"
     except:
         return ""
@@ -170,7 +170,6 @@ if uploaded_file:
             st.subheader("🧾 Preview of FASTA File Sent to Alignment Server")
             st.text_area("FASTA Preview", preview.read(), height=300)
 
-        # Individual pairwise alignments before MSA
         pairwise_identities = {}
         if compute_individual_alignments:
             for record in records:
@@ -253,4 +252,4 @@ if uploaded_file:
                 data[key].append(value)
 
         df_results = pd.DataFrame(data)
-        st.dataframe(df_results.style.applymap(color_identity, subset=[col for col in df_results.columns if "%" in col]))
+        st.dataframe(df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col]))
