@@ -113,8 +113,6 @@ if uploaded_file:
 
     compute_individual_alignments = st.checkbox("⚠️ Include individual pairwise alignments for each sequence against the reference (slower but more accurate)")
 
-    engine = st.selectbox("Select alignment engine", ["Clustal Omega", "MAFFT"])
-
     if st.button("Submit Sequences for Alignment"):
         st.info("Alignment in progress...")
 
@@ -141,17 +139,13 @@ if uploaded_file:
         with open(fasta_path, 'r') as f:
             seq_data = f.read()
 
-        if engine == "Clustal Omega":
-            url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
-            result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
-        else:
-            url = "https://www.ebi.ac.uk/Tools/services/rest/mafft/run"
-            result_url = "https://www.ebi.ac.uk/Tools/services/rest/mafft/result"
+        url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
+        result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
 
         payload = {'email': 'anonymous@example.com', 'sequence': seq_data}
         response = requests.post(url, data=payload)
         if not response.ok:
-            st.error(f"❌ {engine} submission failed.")
+            st.error("❌ Clustal Omega submission failed.")
             st.stop()
         job_id = response.text.strip()
 
@@ -161,14 +155,14 @@ if uploaded_file:
             status = requests.get(f"{url.replace('/run', '')}/status/{job_id}").text.strip()
 
         if status != "FINISHED":
-            st.error(f"❌ {engine} job failed with status: {status}")
+            st.error(f"❌ Clustal Omega job failed with status: {status}")
             st.stop()
 
         result = requests.get(f"{result_url}/{job_id}/aln-clustal")
         aln_text = result.text
 
         if not aln_text.strip().startswith("CLUSTAL"):
-            st.error(f"❌ {engine} result is not a valid Clustal alignment.")
+            st.error("❌ Clustal Omega result is not a valid Clustal alignment.")
             st.text_area("Raw Output", aln_text)
             st.stop()
 
