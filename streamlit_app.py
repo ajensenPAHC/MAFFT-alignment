@@ -41,7 +41,7 @@ def compute_jalview_identity(seq1, seq2):
     return round((matches / aligned) * 100, 2) if aligned > 0 else 0.0, matches, aligned
 
 def compute_identity(seq1, seq2):
-    matches = sum(a == b for a, b in zip(seq1, seq2))
+    matches = sum(a == b for a in zip(seq1, seq2))
     aligned_length = len(seq1)
     return round((matches / aligned_length) * 100, 2)
 
@@ -62,6 +62,8 @@ def compute_gap_penalty_identity(seq1, seq2):
         return 0.0
 
 def compute_pairwise_identity(ref_seq, test_seq):
+    ref_seq = clean_sequence(ref_seq)
+    test_seq = clean_sequence(test_seq)
     alignment = aligner.align(ref_seq, test_seq)[0]
     aligned_ref = alignment.aligned[0]
     aligned_test = alignment.aligned[1]
@@ -134,7 +136,7 @@ if uploaded_file:
 
         with open(fasta_path, 'r') as preview:
             st.subheader("🧾 Preview of FASTA File Sent to Alignment Server")
-            st.code(preview.read())
+            st.text_area("FASTA Preview", preview.read(), height=200)
 
         with open(fasta_path, 'r') as f:
             seq_data = f.read()
@@ -171,7 +173,8 @@ if uploaded_file:
             st.text_area("Raw Output", aln_text)
             st.stop()
 
-        st.code(aln_text, language='clustal')
+        st.subheader("📌 Clustal Omega Alignment Preview")
+        st.text_area("Clustal Alignment", aln_text, height=300)
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
