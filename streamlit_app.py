@@ -143,6 +143,11 @@ if uploaded_file:
             SeqIO.write(all_records, fasta_file, "fasta")
             fasta_path = fasta_file.name
 
+        # Show preview of FASTA file for debugging
+        with open(fasta_path, 'r') as preview:
+            st.subheader("🧾 Preview of FASTA File Sent to MAFFT")
+            st.code(preview.read())
+
         with open(fasta_path, 'rb') as f:
             files = {'file': f}
             response = requests.post("https://www.ebi.ac.uk/Tools/services/rest/mafft/run", files=files)
