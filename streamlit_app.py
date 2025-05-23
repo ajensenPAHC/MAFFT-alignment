@@ -29,11 +29,6 @@ def clean_sequence(seq):
     seq = seq.upper()
     return ''.join([aa for aa in seq if aa in valid_aa_chars])
 
-def compute_identity(seq1, seq2):
-    matches = sum(a == b for a, b in zip(seq1, seq2))
-    aligned_length = len(seq1)
-    return round((matches / aligned_length) * 100, 2)
-
 def compute_gapped_identity(seq1, seq2):
     pairs = [(a, b) for a, b in zip(seq1, seq2) if a != '-' and b != '-']
     if not pairs:
@@ -49,6 +44,17 @@ def compute_gap_penalty_identity(seq1, seq2):
     except Exception as e:
         print(f"[compute_gap_penalty_identity] Alignment error: {e}")
         return 0.0
+
+def compute_jalview_identity(seq1, seq2):
+    matches = 0
+    aligned = 0
+    for a, b in zip(seq1, seq2):
+        if a == '-' and b == '-':
+            continue
+        aligned += 1
+        if a == b:
+            matches += 1
+    return round((matches / aligned) * 100, 2) if aligned > 0 else 0.0
 
 def clustalo_pairwise_alignment(ref_seq, test_seq):
     fasta_pair = f">ref\n{ref_seq}\n>query\n{test_seq}\n"
@@ -80,7 +86,7 @@ def clustalo_pairwise_alignment(ref_seq, test_seq):
     alignments = AlignIO.read(StringIO(alignment_text), "clustal")
     seqs = {rec.id: str(rec.seq) for rec in alignments}
     if 'ref' in seqs and 'query' in seqs:
-        return compute_gapped_identity(seqs['ref'], seqs['query'])
+        return compute_jalview_identity(seqs['ref'], seqs['query'])
     return None
 
 def map_ref_positions(seq):
@@ -221,28 +227,20 @@ if uploaded_file:
 
         data = {
             "Name": [],
-            "Reference": [],
             "MSA Pairwise Identity %": [],
             "Gap-Penalty Identity": [],
             "Individual Alignment %": [] if compute_individual_alignments else None
         }
 
-        # Add reference row first
-        ref_row_data = {
-            "Name": ref_record.id,
-            "Reference": "-",
-            "MSA Pairwise Identity %": 100.0,
-            "Gap-Penalty Identity": 0.0,
-            "Individual Alignment %": 100.0 if compute_individual_alignments else None
-        }
         for pos in aa_positions:
-            align_idx = ref_map.get(pos)
-            ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else "-"
-            ref_row_data[f"AA @ Pos {pos}"] = f"{ref_aa}"
-        for k, v in ref_row_data.items():
-            if k not in data:
-                data[k] = []
-            data[k].append(v)
+            ref_aa = ref_aligned_seq[ref_map.get(pos, '-')]
+            data[f"AA @ Pos {pos}\n(MSA:{ref_map.get(pos, '-')+1 if ref_map.get(pos) is not None else 'N/A'})"] = [ref_aa]
+
+        data["Name"].append(ref_record.id)
+        data["MSA Pairwise Identity %"].append(100.0)
+        data["Gap-Penalty Identity"].append(0.0)
+        if compute_individual_alignments:
+            data["Individual Alignment %"].append(100.0)
 
         for record in alignment:
             if record.id == ref_record.id:
@@ -253,7 +251,6 @@ if uploaded_file:
 
             row = {
                 "Name": record.id,
-                "Reference": ref_record.id,
                 "MSA Pairwise Identity %": msa_id,
                 "Gap-Penalty Identity": gap_penalty_id
             }
@@ -263,12 +260,10 @@ if uploaded_file:
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                row[f"AA @ Pos {pos}"] = f"{test_aa}"
+                data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
 
-            for key, value in row.items():
-                if key not in data:
-                    data[key] = []
-                data[key].append(value)
+            for key in ["Name", "MSA Pairwise Identity %", "Gap-Penalty Identity"] + (["Individual Alignment %"] if compute_individual_alignments else []):
+                data[key].append(row[key])
 
         df_results = pd.DataFrame(data)
         st.dataframe(df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col]))
