@@ -213,7 +213,7 @@ if uploaded_file:
             st.stop()
 
         st.subheader("🔌 Clustal Omega Alignment Preview")
-        st.code(aln_text, language="text")
+        st.text_area("MSA Alignment", aln_text, height=400)
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
@@ -226,6 +226,23 @@ if uploaded_file:
             "Gap-Penalty Identity": [],
             "Individual Alignment %": [] if compute_individual_alignments else None
         }
+
+        # Add reference row first
+        ref_row_data = {
+            "Name": ref_record.id,
+            "Reference": "-",
+            "MSA Pairwise Identity %": 100.0,
+            "Gap-Penalty Identity": 0.0,
+            "Individual Alignment %": 100.0 if compute_individual_alignments else None
+        }
+        for pos in aa_positions:
+            align_idx = ref_map.get(pos)
+            ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else "-"
+            ref_row_data[f"AA @ Pos {pos}"] = f"{ref_aa}"
+        for k, v in ref_row_data.items():
+            if k not in data:
+                data[k] = []
+            data[k].append(v)
 
         for record in alignment:
             if record.id == ref_record.id:
@@ -245,9 +262,8 @@ if uploaded_file:
 
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
-                label = f"AA @ Pos {pos}"
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                row[label] = f"{test_aa}"
+                row[f"AA @ Pos {pos}"] = f"{test_aa}"
 
             for key, value in row.items():
                 if key not in data:
