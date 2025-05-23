@@ -29,17 +29,6 @@ def clean_sequence(seq):
     seq = seq.upper()
     return ''.join([aa for aa in seq if aa in valid_aa_chars])
 
-def compute_jalview_identity(seq1, seq2):
-    matches = 0
-    aligned = 0
-    for a, b in zip(seq1, seq2):
-        if a == '-' and b == '-':
-            continue
-        aligned += 1
-        if a == b:
-            matches += 1
-    return round((matches / aligned) * 100, 2) if aligned > 0 else 0.0, matches, aligned
-
 def compute_identity(seq1, seq2):
     matches = sum(a == b for a, b in zip(seq1, seq2))
     aligned_length = len(seq1)
@@ -67,10 +56,21 @@ def compute_pairwise_identity(ref_seq, test_seq):
     try:
         alignment = aligner.align(ref_seq, test_seq)[0]
         aligned_ref_seq, aligned_test_seq = alignment.format().splitlines()[1:3]
-        return compute_jalview_identity(aligned_ref_seq, aligned_test_seq)[0]
+        matches = sum(a == b for a, b in zip(aligned_ref_seq, aligned_test_seq) if a != '-' and b != '-')
+        aligned = sum(1 for a, b in zip(aligned_ref_seq, aligned_test_seq) if a != '-' and b != '-')
+        return round((matches / aligned) * 100, 2) if aligned else 0.0
     except Exception as e:
         print(f"[compute_pairwise_identity] Error: {e}")
         return 0.0
+
+def map_ref_positions(seq):
+    mapping = {}
+    pos = 0
+    for idx, aa in enumerate(seq):
+        if aa != '-':
+            pos += 1
+            mapping[pos] = idx
+    return mapping
 
 def color_identity(val):
     try:
@@ -114,11 +114,22 @@ if uploaded_file:
 
     aa_pos_input = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12)", "5,10-12")
 
+    def parse_positions(pos_string):
+        pos_set = set()
+        for part in pos_string.split(','):
+            if '-' in part:
+                start, end = part.split('-')
+                pos_set.update(range(int(start), int(end)+1))
+            else:
+                pos_set.add(int(part))
+        return sorted(pos_set)
+
     compute_individual_alignments = st.checkbox("⚠️ Include individual pairwise alignments for each sequence against the reference (slower but more accurate)")
 
     if st.button("Submit Sequences for Alignment"):
         st.info("Alignment in progress...")
 
+        aa_positions = parse_positions(aa_pos_input)
         names = ["_".join(str(df.loc[i][col]) for col in name_cols) for i in selected_rows]
         sequences = [clean_sequence(str(df.loc[i][seq_col])) for i in selected_rows]
         records = [SeqRecord(Seq(seq), id=name, description="") for name, seq in zip(names, sequences)]
@@ -187,32 +198,39 @@ if uploaded_file:
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
+        ref_map = map_ref_positions(ref_aligned_seq)
 
         data = {
             "Name": [],
-            "MSA Identity %": [],
-            "Gapped Identity %": [],
+            "MSA Pairwise Identity %": [],
             "Gap-Penalty Identity": [],
-            "Jalview Identity %": [],
             "Individual Alignment %": [] if compute_individual_alignments else None
         }
 
         for record in alignment:
             if record.id == ref_record.id:
                 continue
-            msa_id = compute_identity(ref_aligned_seq, str(record.seq))
-            gapped_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
+            msa_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
             gap_penalty_id = compute_gap_penalty_identity(ref_aligned_seq, str(record.seq))
-            jalview_id, _, _ = compute_jalview_identity(ref_aligned_seq, str(record.seq))
             ind_align_id = pairwise_identities.get(record.id, None) if compute_individual_alignments else None
 
-            data["Name"].append(record.id)
-            data["MSA Identity %"].append(msa_id)
-            data["Gapped Identity %"].append(gapped_id)
-            data["Gap-Penalty Identity"].append(gap_penalty_id)
-            data["Jalview Identity %"].append(jalview_id)
+            row = {
+                "Name": record.id,
+                "MSA Pairwise Identity %": msa_id,
+                "Gap-Penalty Identity": gap_penalty_id
+            }
             if compute_individual_alignments:
-                data["Individual Alignment %"].append(ind_align_id)
+                row["Individual Alignment %"] = ind_align_id
+
+            for pos in aa_positions:
+                align_idx = ref_map.get(pos)
+                label = f"AA @ Pos {pos}"
+                row[label] = str(record.seq[align_idx]) if align_idx is not None else "[Invalid]"
+
+            for key, value in row.items():
+                if key not in data:
+                    data[key] = []
+                data[key].append(value)
 
         df_results = pd.DataFrame(data)
         st.dataframe(df_results.style.applymap(color_identity, subset=[col for col in df_results.columns if "%" in col]))
