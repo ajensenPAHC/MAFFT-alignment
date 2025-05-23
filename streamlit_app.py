@@ -221,6 +221,7 @@ if uploaded_file:
 
         data = {
             "Name": [],
+            "Reference": [],
             "MSA Pairwise Identity %": [],
             "Gap-Penalty Identity": [],
             "Individual Alignment %": [] if compute_individual_alignments else None
@@ -235,6 +236,7 @@ if uploaded_file:
 
             row = {
                 "Name": record.id,
+                "Reference": ref_record.id,
                 "MSA Pairwise Identity %": msa_id,
                 "Gap-Penalty Identity": gap_penalty_id
             }
@@ -244,7 +246,9 @@ if uploaded_file:
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 label = f"AA @ Pos {pos}"
-                row[label] = str(record.seq[align_idx]) if align_idx is not None else "[Invalid]"
+                ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else "-"
+                test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
+                row[label] = f"{test_aa} (ref:{ref_aa}@{align_idx + 1 if align_idx is not None else '?'})"
 
             for key, value in row.items():
                 if key not in data:
