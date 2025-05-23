@@ -32,7 +32,7 @@ def compute_jalview_identity(seq1, seq2):
     aligned = 0
     for a, b in zip(seq1, seq2):
         if a == '-' and b == '-':
-            continue
+            continue  # skip gap-gap columns
         aligned += 1
         if a == b:
             matches += 1
@@ -59,47 +59,13 @@ def compute_gap_penalty_identity(seq1, seq2):
         print(f"[compute_gap_penalty_identity] Alignment error: {e}")
         return 0.0
 
-def pairwise_align_and_identity(ref_seq, test_seq):
-    try:
-        test_record = SeqRecord(Seq(test_seq), id="test", description="")
-        ref_record = SeqRecord(Seq(ref_seq), id="ref", description="")
-
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as f:
-            SeqIO.write([ref_record, test_record], f.name, "fasta")
-            fasta_str = open(f.name).read()
-
-        submit_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
-        response = requests.post(submit_url, data={
-            'sequence': fasta_str,
-            'stype': 'protein',
-            'email': 'anonymous@example.com'
-        })
-
-        if response.status_code != 200:
-            return 0.0
-
-        job_id = response.text.strip()
-        status_url = f"https://www.ebi.ac.uk/Tools/services/rest/clustalo/status/{job_id}"
-        result_url = f"https://www.ebi.ac.uk/Tools/services/rest/clustalo/result/{job_id}/aln-clustal_num"
-
-        for _ in range(40):
-            status = requests.get(status_url).text.strip()
-            if status == "FINISHED":
-                break
-            time.sleep(3)
-
-        alignment = requests.get(result_url).text
-        clustal_io = StringIO(alignment)
-        aligned = list(SeqIO.parse(clustal_io, "clustal"))
-        ref_aligned = str(aligned[0].seq)
-        test_aligned = str(aligned[1].seq)
-
-        identity, _, _ = compute_jalview_identity(ref_aligned, test_aligned)
-        return identity
-
-    except Exception as e:
-        print(f"[pairwise_align_and_identity] Error: {e}")
-        return 0.0
+def compute_pairwise_identity(ref_seq, test_seq):
+    alignment = aligner.align(ref_seq, test_seq)[0]
+    aligned_ref = alignment.aligned[0]
+    aligned_test = alignment.aligned[1]
+    matches = sum(ref_seq[start1:end1] == test_seq[start2:end2] for (start1, end1), (start2, end2) in zip(aligned_ref, aligned_test))
+    length = sum(end1 - start1 for (start1, end1) in aligned_ref)
+    return round((matches / length) * 100, 2) if length else 0.0
 
 def map_ref_positions(seq):
     mapping = {}
@@ -122,12 +88,99 @@ def color_identity(val):
         print(f"[color_identity] Color mapping error: {e}")
         return ""
 
-show_pairwise = st.checkbox("⚠️ Include individual pairwise alignments (slower, more accurate Jalview-style identity)")
-st.caption("Note: This will recompute reference vs. each sequence separately, which improves accuracy but takes longer.")
+uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
+ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format)", type=[".fasta"])
 
-# Existing app logic continues unchanged after alignment dictionary creation
-# Add this line in the loop after computing other identity scores:
-# row["Pairwise Identity %"] = pairwise_align_and_identity(ref_seq.seq, test_seq) if show_pairwise else "-"
+if uploaded_file:
+    excel = pd.ExcelFile(uploaded_file)
+    sheet_name = st.selectbox("Select sheet", excel.sheet_names)
+    df = excel.parse(sheet_name)
+    df.index += 2
 
-# Add this column to the styled DataFrame visualization subset for highlighting.
-# Example: subset=["MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Pairwise Identity %", "Alignment Score / Len"]
+    name_cols = st.multiselect("Select columns to create sequence names", df.columns)
+    seq_col = st.selectbox("Select column for amino acid sequence", df.columns)
+
+    selection_type = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
+    if selection_type == "Range":
+        row_range = st.slider("Select row range (inclusive)", min_value=2, max_value=int(df.index.max()), value=(2, 5))
+        selected_rows = list(range(row_range[0], row_range[1] + 1))
+    else:
+        selected_rows_input = st.text_input("Enter specific rows (comma-separated)", "2,3,4")
+        selected_rows = [int(x.strip()) for x in selected_rows_input.split(",") if x.strip().isdigit()]
+
+    ref_row = None
+    use_uploaded_ref = st.checkbox("Use uploaded FASTA as reference instead of selecting from Excel")
+    if not use_uploaded_ref:
+        ref_row = st.number_input("Enter the row number of the reference sequence (≥2)", min_value=2, step=1)
+
+    aa_pos_input = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12)", "5,10-12")
+
+    compute_individual_alignments = st.checkbox("⚠️ Include individual pairwise alignments for each sequence against the reference (slower but more accurate)")
+
+    if st.button("Submit Sequences for Alignment"):
+        st.info("Alignment in progress...")
+
+        names = ["_".join(str(df.loc[i][col]) for col in name_cols) for i in selected_rows]
+        sequences = [clean_sequence(str(df.loc[i][seq_col])) for i in selected_rows]
+        records = [SeqRecord(Seq(seq), id=name, description="") for name, seq in zip(names, sequences)]
+
+        if use_uploaded_ref:
+            ref_record = list(SeqIO.parse(ref_fasta, "fasta"))[0]
+        else:
+            ref_idx = selected_rows.index(ref_row)
+            ref_record = records[ref_idx]
+
+        # Save to temp FASTA file
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
+            SeqIO.write(records, fasta_file, "fasta")
+            fasta_path = fasta_file.name
+
+        # Submit to MAFFT
+        with open(fasta_path, 'rb') as f:
+            files = {'file': f}
+            response = requests.post("https://www.ebi.ac.uk/Tools/services/rest/mafft/run", files=files)
+            job_id = response.text
+
+        # Wait for result
+        status = "RUNNING"
+        while status in ["RUNNING", "PENDING"]:
+            time.sleep(2)
+            status = requests.get(f"https://www.ebi.ac.uk/Tools/services/rest/mafft/status/{job_id}").text
+
+        result = requests.get(f"https://www.ebi.ac.uk/Tools/services/rest/mafft/result/{job_id}/aln-clustal")
+        aln_text = result.text
+        st.code(aln_text, language='clustal')
+
+        from Bio import AlignIO
+        alignment = AlignIO.read(StringIO(aln_text), "clustal")
+
+        ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
+
+        data = {
+            "Name": [],
+            "MSA Identity %": [],
+            "Gapped Identity %": [],
+            "Gap-Penalty Identity": [],
+            "Jalview Identity %": [],
+            "Individual Alignment %": [] if compute_individual_alignments else None
+        }
+
+        for record in alignment:
+            if record.id == ref_record.id:
+                continue
+            msa_id = compute_identity(ref_aligned_seq, str(record.seq))
+            gapped_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
+            gap_penalty_id = compute_gap_penalty_identity(ref_aligned_seq, str(record.seq))
+            jalview_id, _, _ = compute_jalview_identity(ref_aligned_seq, str(record.seq))
+            ind_align_id = compute_pairwise_identity(str(ref_record.seq), str(record.seq)) if compute_individual_alignments else None
+
+            data["Name"].append(record.id)
+            data["MSA Identity %"].append(msa_id)
+            data["Gapped Identity %"].append(gapped_id)
+            data["Gap-Penalty Identity"].append(gap_penalty_id)
+            data["Jalview Identity %"].append(jalview_id)
+            if compute_individual_alignments:
+                data["Individual Alignment %"].append(ind_align_id)
+
+        df_results = pd.DataFrame(data)
+        st.dataframe(df_results.style.applymap(color_identity, subset=[col for col in df_results.columns if "%" in col]))
