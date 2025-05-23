@@ -50,18 +50,38 @@ def compute_gap_penalty_identity(seq1, seq2):
         print(f"[compute_gap_penalty_identity] Alignment error: {e}")
         return 0.0
 
-def compute_pairwise_identity(ref_seq, test_seq):
-    ref_seq = clean_sequence(ref_seq)
-    test_seq = clean_sequence(test_seq)
-    try:
-        alignment = aligner.align(ref_seq, test_seq)[0]
-        aligned_ref_seq, aligned_test_seq = alignment.format().splitlines()[1:3]
-        matches = sum(a == b for a, b in zip(aligned_ref_seq, aligned_test_seq) if a != '-' and b != '-')
-        aligned = sum(1 for a, b in zip(aligned_ref_seq, aligned_test_seq) if a != '-' and b != '-')
-        return round((matches / aligned) * 100, 2) if aligned else 0.0
-    except Exception as e:
-        print(f"[compute_pairwise_identity] Error: {e}")
-        return 0.0
+def clustalo_pairwise_alignment(ref_seq, test_seq):
+    fasta_pair = f">ref\n{ref_seq}\n>query\n{test_seq}\n"
+    url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
+    payload = {
+        'email': 'anonymous@example.com',
+        'sequence': fasta_pair,
+        'stype': 'protein',
+        'outfmt': 'clustal'
+    }
+    response = requests.post(url, data=payload)
+    if not response.ok:
+        return None
+    job_id = response.text.strip()
+
+    status_url = url.replace("/run", f"/status/{job_id}")
+    result_url = url.replace("/run", f"/result/{job_id}/aln-clustal")
+
+    for _ in range(30):
+        status = requests.get(status_url).text.strip()
+        if status == "FINISHED":
+            break
+        time.sleep(2)
+
+    alignment_text = requests.get(result_url).text.strip()
+    if not alignment_text.startswith("CLUSTAL"):
+        return None
+
+    alignments = AlignIO.read(StringIO(alignment_text), "clustal")
+    seqs = {rec.id: str(rec.seq) for rec in alignments}
+    if 'ref' in seqs and 'query' in seqs:
+        return compute_gapped_identity(seqs['ref'], seqs['query'])
+    return None
 
 def map_ref_positions(seq):
     mapping = {}
@@ -155,7 +175,7 @@ if uploaded_file:
         if compute_individual_alignments:
             for record in records:
                 if record.id != ref_record.id:
-                    score = compute_pairwise_identity(str(ref_record.seq), str(record.seq))
+                    score = clustalo_pairwise_alignment(str(ref_record.seq), str(record.seq))
                     pairwise_identities[record.id] = score
 
         with open(fasta_path, 'r') as f:
