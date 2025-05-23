@@ -142,7 +142,12 @@ if uploaded_file:
         url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
         result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
 
-        payload = {'email': 'anonymous@example.com', 'sequence': seq_data}
+        payload = {
+            'email': 'anonymous@example.com',
+            'sequence': seq_data,
+            'stype': 'protein',
+            'outfmt': 'clustal'
+        }
         response = requests.post(url, data=payload)
         if not response.ok:
             st.error("❌ Clustal Omega submission failed.")
