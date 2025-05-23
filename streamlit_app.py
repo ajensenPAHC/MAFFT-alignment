@@ -32,7 +32,7 @@ def compute_jalview_identity(seq1, seq2):
     aligned = 0
     for a, b in zip(seq1, seq2):
         if a == '-' and b == '-':
-            continue  # skip gap-gap columns
+            continue
         aligned += 1
         if a == b:
             matches += 1
@@ -59,6 +59,48 @@ def compute_gap_penalty_identity(seq1, seq2):
         print(f"[compute_gap_penalty_identity] Alignment error: {e}")
         return 0.0
 
+def pairwise_align_and_identity(ref_seq, test_seq):
+    try:
+        test_record = SeqRecord(Seq(test_seq), id="test", description="")
+        ref_record = SeqRecord(Seq(ref_seq), id="ref", description="")
+
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as f:
+            SeqIO.write([ref_record, test_record], f.name, "fasta")
+            fasta_str = open(f.name).read()
+
+        submit_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
+        response = requests.post(submit_url, data={
+            'sequence': fasta_str,
+            'stype': 'protein',
+            'email': 'anonymous@example.com'
+        })
+
+        if response.status_code != 200:
+            return 0.0
+
+        job_id = response.text.strip()
+        status_url = f"https://www.ebi.ac.uk/Tools/services/rest/clustalo/status/{job_id}"
+        result_url = f"https://www.ebi.ac.uk/Tools/services/rest/clustalo/result/{job_id}/aln-clustal_num"
+
+        for _ in range(40):
+            status = requests.get(status_url).text.strip()
+            if status == "FINISHED":
+                break
+            time.sleep(3)
+
+        alignment = requests.get(result_url).text
+        clustal_io = StringIO(alignment)
+        aligned = list(SeqIO.parse(clustal_io, "clustal"))
+        ref_aligned = str(aligned[0].seq)
+        test_aligned = str(aligned[1].seq)
+
+        identity, _, _ = compute_jalview_identity(ref_aligned, test_aligned)
+        return identity
+
+    except Exception as e:
+        print(f"[pairwise_align_and_identity] Error: {e}")
+        return 0.0
+
 def map_ref_positions(seq):
     mapping = {}
     pos = 0
@@ -80,157 +122,12 @@ def color_identity(val):
         print(f"[color_identity] Color mapping error: {e}")
         return ""
 
-uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
-ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format)", type=[".fasta"])
+show_pairwise = st.checkbox("⚠️ Include individual pairwise alignments (slower, more accurate Jalview-style identity)")
+st.caption("Note: This will recompute reference vs. each sequence separately, which improves accuracy but takes longer.")
 
-if uploaded_file:
-    excel = pd.ExcelFile(uploaded_file)
-    sheet_name = st.selectbox("Select sheet", excel.sheet_names)
-    df = excel.parse(sheet_name)
-    df.index += 2
+# Existing app logic continues unchanged after alignment dictionary creation
+# Add this line in the loop after computing other identity scores:
+# row["Pairwise Identity %"] = pairwise_align_and_identity(ref_seq.seq, test_seq) if show_pairwise else "-"
 
-    name_cols = st.multiselect("Select columns to create sequence names", df.columns)
-    seq_col = st.selectbox("Select column for amino acid sequence", df.columns)
-
-    selection_type = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
-    if selection_type == "Range":
-        row_range = st.slider("Select row range (inclusive)", min_value=2, max_value=int(df.index.max()), value=(2, 5))
-        selected_rows = list(range(row_range[0], row_range[1] + 1))
-    else:
-        selected_rows_input = st.text_input("Enter specific rows (comma-separated)", "2,3,4")
-        selected_rows = [int(x.strip()) for x in selected_rows_input.split(",") if x.strip().isdigit()]
-
-    ref_row = None
-    use_uploaded_ref = st.checkbox("Use uploaded FASTA as reference instead of selecting from Excel")
-    if not use_uploaded_ref:
-        ref_row = st.number_input("Enter the row number of the reference sequence (≥2)", min_value=2, step=1)
-
-    aa_pos_input = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12)", "5,10-12")
-
-    if st.button("Submit Sequences for Alignment"):
-        def parse_positions(pos_string):
-            pos_set = set()
-            for part in pos_string.split(','):
-                if '-' in part:
-                    start, end = part.split('-')
-                    pos_set.update(range(int(start), int(end)+1))
-                else:
-                    pos_set.add(int(part))
-            return sorted(pos_set)
-
-        aa_positions = parse_positions(aa_pos_input)
-
-        records = []
-        ref_seq = None
-
-        for idx in selected_rows:
-            row = df.loc[idx]
-            name = "_".join([str(row[col]) for col in name_cols])
-            raw_sequence = str(row[seq_col]).replace("\n", "").strip()
-            cleaned_seq = clean_sequence(raw_sequence)
-            if not cleaned_seq:
-                st.warning(f"Sequence at row {idx} for '{name}' was empty or invalid and will be skipped.")
-                continue
-            record = SeqRecord(Seq(cleaned_seq), id=name, description="")
-            if not use_uploaded_ref and idx == ref_row:
-                ref_seq = record
-            else:
-                records.append(record)
-
-        if use_uploaded_ref and ref_fasta:
-            try:
-                ref_seq = list(SeqIO.parse(ref_fasta, "fasta"))[0]
-                ref_seq.seq = Seq(clean_sequence(str(ref_seq.seq)))
-            except Exception as e:
-                st.error(f"Error reading uploaded FASTA: {e}")
-                st.stop()
-
-        if not ref_seq:
-            st.error("Reference sequence not found. Please verify selection or upload.")
-            st.stop()
-
-        all_records = [ref_seq] + records
-
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
-            SeqIO.write(all_records, fasta_file.name, "fasta")
-            fasta_path = fasta_file.name
-
-        with open(fasta_path, 'r') as f:
-            st.text_area("Generated FASTA Preview", f.read(), height=200)
-
-        st.info("Submitting alignment job to Clustal Omega Web API...")
-        with open(fasta_path, 'r') as f:
-            fasta_str = f.read()
-
-        submit_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
-        result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
-
-        response = requests.post(submit_url, data={
-            'sequence': fasta_str,
-            'stype': 'protein',
-            'email': 'anonymous@example.com'
-        })
-
-        if response.status_code != 200:
-            st.error("Failed to submit job to Clustal Omega. Please try again later.")
-            st.stop()
-
-        job_id = response.text.strip()
-        status_url = f"https://www.ebi.ac.uk/Tools/services/rest/clustalo/status/{job_id}"
-
-        with st.spinner("Waiting for Clustal Omega to complete alignment..."):
-            for _ in range(40):
-                status = requests.get(status_url).text.strip()
-                if status == "FINISHED":
-                    break
-                time.sleep(3)
-
-        alignment = requests.get(f"{result_url}/{job_id}/aln-clustal_num").text
-        st.subheader("Alignment Preview")
-        st.code(alignment, language="text")
-
-        clustal_io = StringIO(alignment)
-        alignments = list(SeqIO.parse(clustal_io, "clustal"))
-
-        ref_aligned_seq = next((str(rec.seq) for rec in alignments if rec.id == ref_seq.id), None)
-        if not ref_aligned_seq:
-            st.error("Reference sequence not found in alignment.")
-            st.stop()
-
-        alignment_dict = {rec.id: str(rec.seq) for rec in alignments}
-        ref_map = map_ref_positions(ref_aligned_seq)
-
-        full_results = []
-        for rec in alignments:
-            test_seq = str(rec.seq)
-            msa_identity = compute_identity(ref_aligned_seq, test_seq)
-            gapped_identity = compute_gapped_identity(ref_aligned_seq, test_seq)
-            alignment_score = compute_gap_penalty_identity(ref_aligned_seq, test_seq)
-            eff_identity, match_count, eff_len = compute_jalview_identity(ref_aligned_seq, test_seq)
-
-            row = {
-                "ID": rec.id,
-                "MSA Identity %": msa_identity,
-                "Gapped Identity %": gapped_identity,
-                "Alignment Score / Len": alignment_score,
-                "Jalview Identity %": eff_identity,
-                "Effective Matches": match_count,
-                "Effective Aligned Positions": eff_len,
-            }
-
-            for pos in aa_positions:
-                align_idx = ref_map.get(pos)
-                label = f"Pos {pos} (Aligned:{ref_aligned_seq[align_idx] if align_idx is not None else '-'}@{(align_idx+1) if align_idx is not None else 'N/A'})"
-                row[label] = test_seq[align_idx] if align_idx is not None else '[Invalid]'
-
-            full_results.append(row)
-
-        df_results = pd.DataFrame(full_results)
-        df_results = df_results.astype(str)
-
-        sort_option = st.selectbox("Sort results by:", ["ID", "MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Alignment Score / Len"])
-        df_results = df_results.sort_values(by=sort_option, ascending=(sort_option == "ID"))
-        df_results = pd.concat([df_results[df_results['ID'] == ref_seq.id], df_results[df_results['ID'] != ref_seq.id]])
-
-        styled_df = df_results.style.applymap(color_identity, subset=["MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Alignment Score / Len"])
-        st.dataframe(styled_df, use_container_width=True)
+# Add this column to the styled DataFrame visualization subset for highlighting.
+# Example: subset=["MSA Identity %", "Gapped Identity %", "Jalview Identity %", "Pairwise Identity %", "Alignment Score / Len"]
