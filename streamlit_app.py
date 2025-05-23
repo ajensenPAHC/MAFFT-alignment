@@ -57,7 +57,7 @@ def clustalo_pairwise_alignment(ref_seq, test_seq):
         'email': 'anonymous@example.com',
         'sequence': fasta_pair,
         'stype': 'protein',
-        'outfmt': 'clustal_num'
+        'outfmt': 'clustal'
     }
     response = requests.post(url, data=payload)
     if not response.ok:
@@ -65,7 +65,7 @@ def clustalo_pairwise_alignment(ref_seq, test_seq):
     job_id = response.text.strip()
 
     status_url = url.replace("/run", f"/status/{job_id}")
-    result_url = url.replace("/run", f"/result/{job_id}/aln-clustal_num")
+    result_url = url.replace("/run", f"/result/{job_id}/aln-clustal")
 
     for _ in range(30):
         status = requests.get(status_url).text.strip()
@@ -167,7 +167,7 @@ if uploaded_file:
             fasta_path = fasta_file.name
 
         with open(fasta_path, 'r') as preview:
-            st.subheader("🧾 Preview of FASTA File Sent to Alignment Server")
+            st.subheader("🗒 Preview of FASTA File Sent to Alignment Server")
             st.text_area("FASTA Preview", preview.read(), height=300)
 
         pairwise_identities = {}
@@ -212,8 +212,8 @@ if uploaded_file:
             st.text_area("Raw Output", aln_text, height=300)
             st.stop()
 
-        st.subheader("📌 Clustal Omega Alignment Preview")
-        st.text_area("Clustal Alignment", aln_text, height=400)
+        st.subheader("🔌 Clustal Omega Alignment Preview")
+        st.code(aln_text, language="text")
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
@@ -246,7 +246,6 @@ if uploaded_file:
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 label = f"AA @ Pos {pos}"
-                ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else "-"
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
                 row[label] = f"{test_aa}"
 
