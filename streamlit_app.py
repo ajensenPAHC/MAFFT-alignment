@@ -187,7 +187,7 @@ if uploaded_file:
             'email': 'anonymous@example.com',
             'sequence': seq_data,
             'stype': 'protein',
-            'outfmt': 'clustal'
+            'outfmt': 'clustal_num'
         }
         response = requests.post(url, data=payload)
         if not response.ok:
@@ -204,7 +204,7 @@ if uploaded_file:
             st.error(f"❌ Clustal Omega job failed with status: {status}")
             st.stop()
 
-        result = requests.get(f"{result_url}/{job_id}/aln-clustal")
+        result = requests.get(f"{result_url}/{job_id}/aln-clustal_num")
         aln_text = result.text
 
         if not aln_text.strip().startswith("CLUSTAL"):
