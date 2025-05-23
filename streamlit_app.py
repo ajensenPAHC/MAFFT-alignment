@@ -5,6 +5,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Align import substitution_matrices
 from Bio import Align
+from Bio import AlignIO
 import tempfile
 import requests
 import time
@@ -97,6 +98,9 @@ if uploaded_file:
     df = excel.parse(sheet_name)
     df.index += 2
 
+    st.subheader("📋 Excel Preview")
+    st.dataframe(df.head(10))
+
     name_cols = st.multiselect("Select columns to create sequence names", df.columns)
     seq_col = st.selectbox("Select column for amino acid sequence", df.columns)
 
@@ -139,19 +143,30 @@ if uploaded_file:
         with open(fasta_path, 'rb') as f:
             files = {'file': f}
             response = requests.post("https://www.ebi.ac.uk/Tools/services/rest/mafft/run", files=files)
-            job_id = response.text
+            if not response.ok:
+                st.error("❌ MAFFT submission failed.")
+                st.stop()
+            job_id = response.text.strip()
 
         # Wait for result
         status = "RUNNING"
         while status in ["RUNNING", "PENDING"]:
             time.sleep(2)
-            status = requests.get(f"https://www.ebi.ac.uk/Tools/services/rest/mafft/status/{job_id}").text
+            status = requests.get(f"https://www.ebi.ac.uk/Tools/services/rest/mafft/status/{job_id}").text.strip()
+
+        if status != "FINISHED":
+            st.error(f"❌ MAFFT job failed with status: {status}")
+            st.stop()
 
         result = requests.get(f"https://www.ebi.ac.uk/Tools/services/rest/mafft/result/{job_id}/aln-clustal")
         aln_text = result.text
-        st.code(aln_text, language='clustal')
 
-        from Bio import AlignIO
+        if not aln_text.strip().startswith("CLUSTAL"):
+            st.error("❌ MAFFT result is not a valid Clustal alignment.")
+            st.text_area("Raw Output", aln_text)
+            st.stop()
+
+        st.code(aln_text, language='clustal')
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
