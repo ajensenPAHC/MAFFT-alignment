@@ -57,7 +57,7 @@ def clustalo_pairwise_alignment(ref_seq, test_seq):
         'email': 'anonymous@example.com',
         'sequence': fasta_pair,
         'stype': 'protein',
-        'outfmt': 'clustal'
+        'outfmt': 'clustal_num'
     }
     response = requests.post(url, data=payload)
     if not response.ok:
@@ -65,7 +65,7 @@ def clustalo_pairwise_alignment(ref_seq, test_seq):
     job_id = response.text.strip()
 
     status_url = url.replace("/run", f"/status/{job_id}")
-    result_url = url.replace("/run", f"/result/{job_id}/aln-clustal")
+    result_url = url.replace("/run", f"/result/{job_id}/aln-clustal_num")
 
     for _ in range(30):
         status = requests.get(status_url).text.strip()
@@ -187,7 +187,7 @@ if uploaded_file:
             'email': 'anonymous@example.com',
             'sequence': seq_data,
             'stype': 'protein',
-            'outfmt': 'clustal_num'
+            'outfmt': 'clustal'
         }
         response = requests.post(url, data=payload)
         if not response.ok:
@@ -204,7 +204,7 @@ if uploaded_file:
             st.error(f"❌ Clustal Omega job failed with status: {status}")
             st.stop()
 
-        result = requests.get(f"{result_url}/{job_id}/aln-clustal_num")
+        result = requests.get(f"{result_url}/{job_id}/aln-clustal")
         aln_text = result.text
 
         if not aln_text.strip().startswith("CLUSTAL"):
@@ -248,7 +248,7 @@ if uploaded_file:
                 label = f"AA @ Pos {pos}"
                 ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else "-"
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                row[label] = f"{test_aa} (ref:{ref_aa}@{align_idx + 1 if align_idx is not None else '?'})"
+                row[label] = f"{test_aa}"
 
             for key, value in row.items():
                 if key not in data:
