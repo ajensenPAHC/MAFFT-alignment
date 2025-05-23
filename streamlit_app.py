@@ -34,7 +34,7 @@ def compute_jalview_identity(seq1, seq2):
     aligned = 0
     for a, b in zip(seq1, seq2):
         if a == '-' and b == '-':
-            continue  # skip gap-gap columns
+            continue
         aligned += 1
         if a == b:
             matches += 1
@@ -69,15 +69,6 @@ def compute_pairwise_identity(ref_seq, test_seq):
     length = sum(end1 - start1 for (start1, end1) in aligned_ref)
     return round((matches / length) * 100, 2) if length else 0.0
 
-def map_ref_positions(seq):
-    mapping = {}
-    pos = 0
-    for idx, aa in enumerate(seq):
-        if aa != '-':
-            pos += 1
-            mapping[pos] = idx
-    return mapping
-
 def color_identity(val):
     try:
         val = float(val)
@@ -86,8 +77,7 @@ def color_identity(val):
         bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])}, {rgba[3]})"
         text_color = "#FFF" if val >= 99.9 else "#000"
         return f"background-color: {bg_color}; color: {text_color}"
-    except Exception as e:
-        print(f"[color_identity] Color mapping error: {e}")
+    except:
         return ""
 
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
@@ -97,7 +87,7 @@ if uploaded_file:
     excel = pd.ExcelFile(uploaded_file)
     sheet_name = st.selectbox("Select sheet", excel.sheet_names)
     df = excel.parse(sheet_name)
-    df = df.astype(str)  # Ensure all values are strings for compatibility
+    df = df.astype(str)
     df.index += 2
 
     st.subheader("📋 Excel Preview")
@@ -123,6 +113,8 @@ if uploaded_file:
 
     compute_individual_alignments = st.checkbox("⚠️ Include individual pairwise alignments for each sequence against the reference (slower but more accurate)")
 
+    engine = st.selectbox("Select alignment engine", ["Clustal Omega", "MAFFT"])
+
     if st.button("Submit Sequences for Alignment"):
         st.info("Alignment in progress...")
 
@@ -138,38 +130,45 @@ if uploaded_file:
 
         all_records = [ref_record] + [r for r in records if r.id != ref_record.id]
 
-        # Save to temp FASTA file
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
             SeqIO.write(all_records, fasta_file, "fasta")
             fasta_path = fasta_file.name
 
-        # Show preview of FASTA file for debugging
         with open(fasta_path, 'r') as preview:
-            st.subheader("🧾 Preview of FASTA File Sent to MAFFT")
+            st.subheader("🧾 Preview of FASTA File Sent to Alignment Server")
             st.code(preview.read())
 
-        with open(fasta_path, 'rb') as f:
-            files = {'file': f}
-            response = requests.post("https://www.ebi.ac.uk/Tools/services/rest/mafft/run", files=files)
-            if not response.ok:
-                st.error("❌ MAFFT submission failed.")
-                st.stop()
-            job_id = response.text.strip()
+        with open(fasta_path, 'r') as f:
+            seq_data = f.read()
+
+        if engine == "Clustal Omega":
+            url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
+            result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
+        else:
+            url = "https://www.ebi.ac.uk/Tools/services/rest/mafft/run"
+            result_url = "https://www.ebi.ac.uk/Tools/services/rest/mafft/result"
+
+        payload = {'email': 'anonymous@example.com', 'sequence': seq_data}
+        response = requests.post(url, data=payload)
+        if not response.ok:
+            st.error(f"❌ {engine} submission failed.")
+            st.stop()
+        job_id = response.text.strip()
 
         status = "RUNNING"
         while status in ["RUNNING", "PENDING"]:
             time.sleep(2)
-            status = requests.get(f"https://www.ebi.ac.uk/Tools/services/rest/mafft/status/{job_id}").text.strip()
+            status = requests.get(f"{url.replace('/run', '')}/status/{job_id}").text.strip()
 
         if status != "FINISHED":
-            st.error(f"❌ MAFFT job failed with status: {status}")
+            st.error(f"❌ {engine} job failed with status: {status}")
             st.stop()
 
-        result = requests.get(f"https://www.ebi.ac.uk/Tools/services/rest/mafft/result/{job_id}/aln-clustal")
+        result = requests.get(f"{result_url}/{job_id}/aln-clustal")
         aln_text = result.text
 
         if not aln_text.strip().startswith("CLUSTAL"):
-            st.error("❌ MAFFT result is not a valid Clustal alignment.")
+            st.error(f"❌ {engine} result is not a valid Clustal alignment.")
             st.text_area("Raw Output", aln_text)
             st.stop()
 
