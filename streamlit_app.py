@@ -66,11 +66,8 @@ def compute_pairwise_identity(ref_seq, test_seq):
     test_seq = clean_sequence(test_seq)
     try:
         alignment = aligner.align(ref_seq, test_seq)[0]
-        aligned_ref = alignment.aligned[0]
-        aligned_test = alignment.aligned[1]
-        matches = sum(ref_seq[start1:end1] == test_seq[start2:end2] for (start1, end1), (start2, end2) in zip(aligned_ref, aligned_test))
-        length = sum(end1 - start1 for (start1, end1) in aligned_ref)
-        return round((matches / length) * 100, 2) if length else 0.0
+        aligned_ref_seq, aligned_test_seq = alignment.format().splitlines()[1:3]
+        return compute_jalview_identity(aligned_ref_seq, aligned_test_seq)[0]
     except Exception as e:
         print(f"[compute_pairwise_identity] Error: {e}")
         return 0.0
@@ -142,6 +139,14 @@ if uploaded_file:
             st.subheader("🧾 Preview of FASTA File Sent to Alignment Server")
             st.text_area("FASTA Preview", preview.read(), height=300)
 
+        # Individual pairwise alignments before MSA
+        pairwise_identities = {}
+        if compute_individual_alignments:
+            for record in records:
+                if record.id != ref_record.id:
+                    score = compute_pairwise_identity(str(ref_record.seq), str(record.seq))
+                    pairwise_identities[record.id] = score
+
         with open(fasta_path, 'r') as f:
             seq_data = f.read()
 
@@ -199,7 +204,7 @@ if uploaded_file:
             gapped_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
             gap_penalty_id = compute_gap_penalty_identity(ref_aligned_seq, str(record.seq))
             jalview_id, _, _ = compute_jalview_identity(ref_aligned_seq, str(record.seq))
-            ind_align_id = compute_pairwise_identity(str(ref_record.seq), str(record.seq)) if compute_individual_alignments else None
+            ind_align_id = pairwise_identities.get(record.id, None) if compute_individual_alignments else None
 
             data["Name"].append(record.id)
             data["MSA Identity %"].append(msa_id)
