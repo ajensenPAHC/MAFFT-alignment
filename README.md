@@ -1,16 +1,36 @@
-# MAFFT Web-Based Sequence Aligner
+# 🧬 Amino Acid Sequence Analyzer and Classifier
 
-This Streamlit app allows you to upload Excel files of amino acid sequences, aligns them using the MAFFT web server, and displays the aligned output—all with no local installation needed.
+This app allows you to upload Excel files with amino acid sequences, align them via Clustal Omega, and compute pairwise identity scores. Optionally, it also computes per-position amino acid differences.
 
-## 🌐 Hosted on Streamlit Community Cloud
+## 🚀 Launch the App
 
-## 🚀 How to Deploy
+Use the hosted Streamlit link:  
+[https://your-username-your-app.streamlit.app](https://your-username-your-app.streamlit.app)
 
-1. Fork or clone this repo.
-2. Upload it to [Streamlit Community Cloud](https://streamlit.io/cloud).
-3. Run the app!
+## 🔐 Data Security
 
-## 🔧 Requirements
+- No user data is stored or logged.
+- All uploaded files are processed temporarily in memory.
+- Uses HTTPS-secured calls to Clustal Omega servers (EBI).
 
-- Python 3.8+
-- Internet access (to reach the MAFFT server)
+## 🧰 Features
+
+- Excel preview of uploaded sequence data
+- Scrollable Clustal Omega MSA output
+- Optional pairwise identity (Jalview logic)
+- Per-position amino acid comparison
+- Downloadable CSV of results
+
+## 🛠️ Setup (if running locally)
+
+1. Clone the repo  
+   `git clone https://github.com/your-username/your-repo.git`
+
+2. Navigate into the folder  
+   `cd your-repo`
+
+3. Install dependencies  
+   `pip install -r requirements.txt`
+
+4. Run the app  
+   `streamlit run streamlit_app.py`
