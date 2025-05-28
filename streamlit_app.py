@@ -15,7 +15,7 @@ import re
 import os
 
 st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
-st.title("🧬 Amino Acid Sequence Analyzer and Classifier")
+st.title("🦜 Amino Acid Sequence Analyzer and Classifier")
 
 aligner = Align.PairwiseAligner()
 aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
@@ -237,7 +237,14 @@ if uploaded_file:
         st.code(aln_text, language="text")
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
-        ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
+        clustal_ids = [rec.id for rec in alignment]
+        ref_id_truncated = ref_record.id[:30]
+        try:
+            ref_aligned_seq = str([r.seq for r in alignment if r.id.startswith(ref_id_truncated)][0])
+        except IndexError:
+            st.error(f"❌ Could not find reference ID '{ref_record.id}' in the alignment results.\nReturned IDs: {clustal_ids}")
+            st.stop()
+
         ref_map = map_ref_positions(ref_aligned_seq)
 
         data = {
