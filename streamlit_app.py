@@ -103,11 +103,20 @@ def color_identity(val):
 def parse_rows_input(input_str):
     rows = set()
     for part in input_str.split(','):
+        part = part.strip()
+        if not part:
+            continue
         if '-' in part:
-            start, end = map(int, part.split('-'))
-            rows.update(range(start, end + 1))
+            try:
+                start, end = map(int, part.split('-'))
+                rows.update(range(start, end + 1))
+            except:
+                continue
         else:
-            rows.add(int(part.strip()))
+            try:
+                rows.add(int(part))
+            except:
+                continue
     return sorted(rows)
 
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
@@ -159,7 +168,12 @@ if uploaded_file:
         aa_positions = parse_positions(aa_pos_input)
         names = ["_".join(str(df.loc[i][col]) for col in name_cols) for i in selected_rows]
         sequences = [clean_sequence(str(df.loc[i][seq_col])) for i in selected_rows]
-        records = [SeqRecord(Seq(seq), id=name, description="") for name, seq in zip(names, sequences)]
+
+        invalid_rows = [i for i, seq in zip(selected_rows, sequences) if not seq]
+        if invalid_rows:
+            st.error(f"The following rows have empty or invalid sequences and will be skipped: {invalid_rows}")
+
+        records = [SeqRecord(Seq(seq), id=name, description="") for name, seq in zip(names, sequences) if seq]
 
         if use_uploaded_ref:
             ref_record = list(SeqIO.parse(ref_fasta, "fasta"))[0]
@@ -266,4 +280,4 @@ if uploaded_file:
         st.dataframe(df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col]))
 
         csv = df_results.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export Results as CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
+        st.download_button("📅 Export Results as CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
