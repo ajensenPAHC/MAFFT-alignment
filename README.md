@@ -24,7 +24,7 @@ Use the hosted Streamlit link:
 ## 🛠️ Setup (if running locally)
 
 1. Clone the repo  
-   `git clone https://github.com/aaronjensenPAHC/your-repo.git`
+   `git clone https://github.com/aaronjensenPAHC/MAFFT-alignment`
 
 2. Navigate into the folder  
    `cd your-repo`
