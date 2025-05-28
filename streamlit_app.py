@@ -100,6 +100,16 @@ def color_identity(val):
     except:
         return ""
 
+def parse_rows_input(input_str):
+    rows = set()
+    for part in input_str.split(','):
+        if '-' in part:
+            start, end = map(int, part.split('-'))
+            rows.update(range(start, end + 1))
+        else:
+            rows.add(int(part.strip()))
+    return sorted(rows)
+
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
 ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format)", type=[".fasta"])
 
@@ -121,8 +131,8 @@ if uploaded_file:
         row_range = st.slider("Select row range (inclusive)", min_value=2, max_value=int(df.index.max()), value=(2, 5))
         selected_rows = list(range(row_range[0], row_range[1] + 1))
     else:
-        selected_rows_input = st.text_input("Enter specific rows (comma-separated)", "2,3,4")
-        selected_rows = [int(x.strip()) for x in selected_rows_input.split(",") if x.strip().isdigit()]
+        selected_rows_input = st.text_input("Enter specific rows or ranges (e.g., 2,4-6,8)", "2,3,4")
+        selected_rows = parse_rows_input(selected_rows_input)
 
     ref_row = None
     use_uploaded_ref = st.checkbox("Use uploaded FASTA as reference instead of selecting from Excel")
