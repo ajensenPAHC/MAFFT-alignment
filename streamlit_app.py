@@ -126,7 +126,6 @@ if uploaded_file:
     excel = pd.ExcelFile(uploaded_file)
     sheet_name = st.selectbox("Select sheet", excel.sheet_names)
     df = excel.parse(sheet_name)
-    df = df.astype(str)
     df.index += 2
 
     st.subheader("📋 Excel Preview")
@@ -166,14 +165,24 @@ if uploaded_file:
         st.info("Alignment in progress...")
 
         aa_positions = parse_positions(aa_pos_input)
-        names = ["_".join(str(df.loc[i][col]) for col in name_cols) for i in selected_rows]
-        sequences = [clean_sequence(str(df.loc[i][seq_col])) for i in selected_rows]
+        names = []
+        sequences = []
+        invalid_rows = []
 
-        invalid_rows = [i for i, seq in zip(selected_rows, sequences) if not seq]
+        for i in selected_rows:
+            raw_value = df.at[i, seq_col] if pd.notna(df.at[i, seq_col]) else ""
+            cleaned_seq = clean_sequence(str(raw_value))
+            name = "_".join(str(df.at[i, col]) for col in name_cols)
+            if cleaned_seq:
+                names.append(name[:30].replace(" ", "_"))  # truncate and sanitize ID
+                sequences.append(cleaned_seq)
+            else:
+                invalid_rows.append(i)
+
         if invalid_rows:
             st.error(f"The following rows have empty or invalid sequences and will be skipped: {invalid_rows}")
 
-        records = [SeqRecord(Seq(seq), id=name, description="") for name, seq in zip(names, sequences) if seq]
+        records = [SeqRecord(Seq(seq), id=name, description="") for name, seq in zip(names, sequences)]
 
         if use_uploaded_ref:
             ref_record = list(SeqIO.parse(ref_fasta, "fasta"))[0]
@@ -182,6 +191,9 @@ if uploaded_file:
             ref_record = records[ref_idx]
 
         all_records = [ref_record] + [r for r in records if r.id != ref_record.id]
+
+        # Store ID mapping for recovery after alignment
+        id_map = {r.id[:30]: r.id for r in all_records}
 
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
             SeqIO.write(all_records, fasta_file, "fasta")
@@ -196,7 +208,7 @@ if uploaded_file:
             for record in records:
                 if record.id != ref_record.id:
                     score = clustalo_pairwise_alignment(str(ref_record.seq), str(record.seq))
-                    pairwise_identities[record.id] = score
+                    pairwise_identities[record.id[:30]] = score
 
         with open(fasta_path, 'r') as f:
             seq_data = f.read()
@@ -238,11 +250,11 @@ if uploaded_file:
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         clustal_ids = [rec.id for rec in alignment]
-        ref_id_truncated = ref_record.id[:30]
+        ref_trunc = ref_record.id[:30]
         try:
-            ref_aligned_seq = str([r.seq for r in alignment if r.id.startswith(ref_id_truncated)][0])
+            ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
         except IndexError:
-            st.error(f"❌ Could not find reference ID '{ref_record.id}' in the alignment results.\nReturned IDs: {clustal_ids}")
+            st.error(f"❌ Could not find reference ID '{ref_record.id}' in the alignment results. Returned IDs: {clustal_ids}")
             st.stop()
 
         ref_map = map_ref_positions(ref_aligned_seq)
@@ -263,13 +275,13 @@ if uploaded_file:
             data["Individual Alignment %"].append(100.0)
 
         for record in alignment:
-            if record.id == ref_record.id:
+            if record.id == ref_trunc:
                 continue
             msa_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
             ind_align_id = pairwise_identities.get(record.id, None) if compute_individual_alignments else None
 
             row = {
-                "Name": record.id,
+                "Name": id_map.get(record.id, record.id),
                 "MSA Pairwise Identity %": msa_id
             }
             if compute_individual_alignments:
