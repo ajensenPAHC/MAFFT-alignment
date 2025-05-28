@@ -36,15 +36,6 @@ def compute_gapped_identity(seq1, seq2):
     matches = sum(a == b for a, b in pairs)
     return round((matches / len(pairs)) * 100, 2)
 
-def compute_gap_penalty_identity(seq1, seq2):
-    try:
-        aligned_score = aligner.align(seq1.replace('-', ''), seq2.replace('-', ''))[0].score
-        score_ratio = round(aligned_score / len(seq1.replace('-', '')), 2)
-        return score_ratio
-    except Exception as e:
-        print(f"[compute_gap_penalty_identity] Alignment error: {e}")
-        return 0.0
-
 def compute_jalview_identity(seq1, seq2):
     matches = 0
     aligned = 0
@@ -174,7 +165,7 @@ if uploaded_file:
 
         with open(fasta_path, 'r') as preview:
             st.subheader("🗒 Preview of FASTA File Sent to Alignment Server")
-            st.text_area("FASTA Preview", preview.read(), height=300)
+            st.code(preview.read(), language="text")
 
         pairwise_identities = {}
         if compute_individual_alignments:
@@ -219,7 +210,7 @@ if uploaded_file:
             st.stop()
 
         st.subheader("🔌 Clustal Omega Alignment Preview")
-        st.text_area("MSA Alignment", aln_text, height=400)
+        st.code(aln_text, language="text")
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
@@ -228,7 +219,6 @@ if uploaded_file:
         data = {
             "Name": [],
             "MSA Pairwise Identity %": [],
-            "Gap-Penalty Identity": [],
             "Individual Alignment %": [] if compute_individual_alignments else None
         }
 
@@ -238,7 +228,6 @@ if uploaded_file:
 
         data["Name"].append(ref_record.id)
         data["MSA Pairwise Identity %"].append(100.0)
-        data["Gap-Penalty Identity"].append(0.0)
         if compute_individual_alignments:
             data["Individual Alignment %"].append(100.0)
 
@@ -246,13 +235,11 @@ if uploaded_file:
             if record.id == ref_record.id:
                 continue
             msa_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
-            gap_penalty_id = compute_gap_penalty_identity(ref_aligned_seq, str(record.seq))
             ind_align_id = pairwise_identities.get(record.id, None) if compute_individual_alignments else None
 
             row = {
                 "Name": record.id,
-                "MSA Pairwise Identity %": msa_id,
-                "Gap-Penalty Identity": gap_penalty_id
+                "MSA Pairwise Identity %": msa_id
             }
             if compute_individual_alignments:
                 row["Individual Alignment %"] = ind_align_id
@@ -262,8 +249,11 @@ if uploaded_file:
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
                 data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
 
-            for key in ["Name", "MSA Pairwise Identity %", "Gap-Penalty Identity"] + (["Individual Alignment %"] if compute_individual_alignments else []):
+            for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
                 data[key].append(row[key])
 
         df_results = pd.DataFrame(data)
         st.dataframe(df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col]))
+
+        csv = df_results.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Export Results as CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
