@@ -224,7 +224,10 @@ if uploaded_file:
 
         pairwise_identities = {}
         if compute_individual_alignments:
+            import tracemalloc
+            tracemalloc.start()
             with st.spinner("Running individual alignments (this may take time)..."):
+                start_time = time.time()
                 for record in records:
                     if record.id != ref_record.id:
                         try:
@@ -233,36 +236,13 @@ if uploaded_file:
                             score = None
                             st.warning(f"⚠️ Alignment failed for {record.id}: {e}")
                         pairwise_identities[record.id] = score
-                        # live progress update
                         st.write(f"✓ {record.id} aligned: {score if score is not None else 'Error'}")
+                current, peak = tracemalloc.get_traced_memory()
+                tracemalloc.stop()
+                st.success(f"⏱️ Individual alignments completed in {time.time() - start_time:.2f} seconds")
+                st.info(f"💾 Memory used: {current / 10**6:.2f} MB (Peak: {peak / 10**6:.2f} MB)")
 
-        with open(fasta_path, 'r') as f:
-            seq_data = f.read()
-
-        url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
-        result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
-
-        payload = {
-            'email': 'anonymous@example.com',
-            'sequence': seq_data,
-            'stype': 'protein',
-            'outfmt': 'clustal'
-        }
-        response = requests.post(url, data=payload)
-        if not response.ok:
-            st.error("❌ Clustal Omega submission failed.")
-            st.stop()
-        job_id = response.text.strip()
-
-        status = "RUNNING"
-        while status in ["RUNNING", "PENDING"]:
-            time.sleep(2)
-            status = requests.get(f"{url.replace('/run', '')}/status/{job_id}").text.strip()
-
-        if status != "FINISHED":
-            st.error(f"❌ Clustal Omega job failed with status: {status}")
-            st.stop()
-
+        # Retrieve MSA results
         result = requests.get(f"{result_url}/{job_id}/aln-clustal")
         aln_text = result.text
 
@@ -275,14 +255,8 @@ if uploaded_file:
         st.code(aln_text, language="text")
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
-        clustal_ids = [rec.id for rec in alignment]
         ref_trunc = ref_record.id[:30]
-        try:
-            ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
-        except IndexError:
-            st.error(f"❌ Could not find reference ID '{ref_record.id}' in the alignment results. Returned IDs: {clustal_ids}")
-            st.stop()
-
+        ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
         ref_map = map_ref_positions(ref_aligned_seq)
 
         data = {
@@ -290,10 +264,10 @@ if uploaded_file:
             "MSA Pairwise Identity %": [],
             "Individual Alignment %": [] if compute_individual_alignments else None
         }
-
         for pos in aa_positions:
             ref_aa = ref_aligned_seq[ref_map.get(pos, '-')]
-            data[f"AA @ Pos {pos}\n(MSA:{ref_map.get(pos, '-')+1 if ref_map.get(pos) is not None else 'N/A'})"] = [ref_aa]
+            data[f"AA @ Pos {pos}
+(MSA:{ref_map.get(pos)+1 if ref_map.get(pos) is not None else 'N/A'})"] = [ref_aa]
 
         data["Name"].append(ref_record.id)
         data["MSA Pairwise Identity %"].append(100.0)
@@ -316,7 +290,8 @@ if uploaded_file:
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
+                data[f"AA @ Pos {pos}
+(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
 
             for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
                 data[key].append(row[key])
@@ -324,5 +299,39 @@ if uploaded_file:
         df_results = pd.DataFrame(data)
         st.dataframe(df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col]))
 
-        csv = df_results.to_csv(index=False).encode('utf-8')
+        csv = df_results.to_csv(index=False)
+        st.text_area("📄 Live CSV Preview", csv, height=300)
+        st.download_button("📅 Export Results as CSV", data=csv.encode('utf-8'), file_name="alignment_results.csv", mime="text/csv")
+            ind_align_id = pairwise_identities.get(record.id, None) if compute_individual_alignments else None
+
+            row = {
+                "Name": id_map.get(record.id, record.id),
+                "MSA Pairwise Identity %": msa_id
+            }
+            if compute_individual_alignments:
+                row["Individual Alignment %"] = ind_align_id
+
+            for pos in aa_positions:
+                align_idx = ref_map.get(pos)
+                test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
+                data[f"AA @ Pos {pos}
+(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
+
+            for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
+                data[key].append(row[key])
+
+            df_results = pd.DataFrame(data)
+            st.dataframe(df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col]))
+
+            csv = df_results.to_csv(index=False)
+            st.text_area("📄 Live CSV Preview", csv, height=300)
+
+        df_results = pd.DataFrame(data)
+        st.dataframe(df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col]))
+
+        csv = df_results.to_csv(index=False)
+st.text_area("📄 Live CSV Preview", csv, height=300)
+csv = csv.encode('utf-8')
+
+        st.download_button("📅 Export Results as CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
         st.download_button("📅 Export Results as CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
