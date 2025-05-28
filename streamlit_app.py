@@ -266,8 +266,7 @@ if uploaded_file:
         }
         for pos in aa_positions:
             ref_aa = ref_aligned_seq[ref_map.get(pos, '-')]
-            data[f"AA @ Pos {pos}
-(MSA:{ref_map.get(pos)+1 if ref_map.get(pos) is not None else 'N/A'})"] = [ref_aa]
+            data[f"AA @ Pos {pos}\n(MSA:{ref_map.get(pos)+1 if ref_map.get(pos) is not None else 'N/A'})"] = [ref_aa]
 
         data["Name"].append(ref_record.id)
         data["MSA Pairwise Identity %"].append(100.0)
@@ -290,8 +289,7 @@ if uploaded_file:
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                data[f"AA @ Pos {pos}
-(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
+                data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
 
             for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
                 data[key].append(row[key])
