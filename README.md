@@ -5,7 +5,7 @@ This app allows you to upload Excel files with amino acid sequences, align them 
 ## 🚀 Launch the App
 
 Use the hosted Streamlit link:  
-[https://your-username-your-app.streamlit.app](https://your-username-your-app.streamlit.app)
+[https://your-username-your-app.streamlit.app](https://aaronjensenPAHC.streamlit.app)
 
 ## 🔐 Data Security
 
@@ -24,7 +24,7 @@ Use the hosted Streamlit link:
 ## 🛠️ Setup (if running locally)
 
 1. Clone the repo  
-   `git clone https://github.com/your-username/your-repo.git`
+   `git clone https://github.com/aaronjensenPAHC/your-repo.git`
 
 2. Navigate into the folder  
    `cd your-repo`
