@@ -15,7 +15,7 @@ import re
 import os
 
 st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
-st.title("🦜 Amino Acid Sequence Analyzer and Classifier")
+st.title("🍜 Amino Acid Sequence Analyzer and Classifier")
 
 aligner = Align.PairwiseAligner()
 aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
@@ -174,7 +174,7 @@ if uploaded_file:
             cleaned_seq = clean_sequence(str(raw_value))
             name = "_".join(str(df.at[i, col]) for col in name_cols)
             if cleaned_seq:
-                names.append(name[:30].replace(" ", "_"))  # truncate and sanitize ID
+                names.append(name[:30].replace(" ", "_"))
                 sequences.append(cleaned_seq)
             else:
                 invalid_rows.append(i)
@@ -191,10 +191,81 @@ if uploaded_file:
         if use_uploaded_ref:
             ref_record = list(SeqIO.parse(ref_fasta, "fasta"))[0]
         else:
-            if ref_row not in selected_rows or ref_row in invalid_rows:
+            valid_row_map = [r for r in selected_rows if r not in invalid_rows]
+            if ref_row not in valid_row_map:
                 st.error("❌ Reference row is invalid or was skipped. Please choose a valid reference row with a sequence.")
                 st.stop()
-            ref_idx = selected_rows.index(ref_row)
+            ref_idx = valid_row_map.index(ref_row)
             ref_record = records[ref_idx]
 
-        # (The rest of the app logic continues unchanged...)
+        # --- Full alignment-processing and output logic continues here ---
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
+            SeqIO.write([ref_record] + [r for r in records if r.id != ref_record.id], fasta_file, "fasta")
+            fasta_path = fasta_file.name
+
+        with open(fasta_path, 'r') as f:
+            fasta_text = f.read()
+        st.text_area("🧬 FASTA Preview (Scroll to View)", fasta_text, height=300)
+
+        url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
+        result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
+
+        response = requests.post(url, data={
+            'sequence': fasta_text,
+            'stype': 'protein',
+            'email': 'anonymous@example.com'
+        })
+
+        if response.status_code != 200:
+            st.error("❌ Failed to submit to Clustal Omega")
+            st.stop()
+
+        job_id = response.text.strip()
+        status_url = url.replace("/run", f"/status/{job_id}")
+        aln_url = f"{result_url}/{job_id}/aln-clustal"
+
+        for _ in range(40):
+            status = requests.get(status_url).text.strip()
+            if status == "FINISHED":
+                break
+            time.sleep(3)
+
+        aln_text = requests.get(aln_url).text
+        st.code(aln_text, language="text")
+
+        alignment = AlignIO.read(StringIO(aln_text), "clustal")
+        ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_record.id][0])
+        ref_map = map_ref_positions(ref_aligned_seq)
+
+        data = {
+            "Name": [],
+            "MSA Pairwise Identity %": [],
+            "Individual Alignment %": [],
+        }
+
+        for pos in aa_positions:
+            ref_aa = ref_aligned_seq[ref_map.get(pos, -1)] if ref_map.get(pos) is not None else "-"
+            label = f"{pos} ({ref_aa}@{ref_map.get(pos, '-')})"
+            data[label] = []
+
+        for record in alignment:
+            test_seq = str(record.seq)
+            msa_id = compute_gapped_identity(ref_aligned_seq, test_seq)
+            ind_id = clustalo_pairwise_alignment(str(ref_record.seq), str(record.seq)) if compute_individual_alignments else "-"
+
+            data["Name"].append(record.id)
+            data["MSA Pairwise Identity %"].append(msa_id)
+            data["Individual Alignment %"].append(ind_id)
+
+            for pos in aa_positions:
+                idx = ref_map.get(pos)
+                test_aa = test_seq[idx] if idx is not None and idx < len(test_seq) else "-"
+                data[f"{pos} ({ref_aligned_seq[idx] if idx is not None else '-'}@{idx+1 if idx is not None else 'N/A'})"].append(test_aa)
+
+        df_out = pd.DataFrame(data)
+        df_out = pd.concat([df_out[df_out['Name'] == ref_record.id], df_out[df_out['Name'] != ref_record.id]])
+        styled_df = df_out.style.map(color_identity, subset=["MSA Pairwise Identity %", "Individual Alignment %"])
+        st.dataframe(styled_df, use_container_width=True)
+
+        csv = df_out.to_csv(index=False).encode("utf-8")
+        st.download_button("📁 Export CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
