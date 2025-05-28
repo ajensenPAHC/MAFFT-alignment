@@ -132,11 +132,17 @@ def parse_rows_input(input_str):
 def parse_positions(pos_string):
     pos_set = set()
     for part in pos_string.split(','):
-        if '-' in part:
-            start, end = part.split('-')
-            pos_set.update(range(int(start), int(end)+1))
-        else:
-            pos_set.add(int(part))
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            if '-' in part:
+                start, end = part.split('-')
+                pos_set.update(range(int(start), int(end)+1))
+            else:
+                pos_set.add(int(part))
+        except (ValueError, TypeError):
+            continue
     return sorted(pos_set)
 
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
@@ -218,10 +224,17 @@ if uploaded_file:
 
         pairwise_identities = {}
         if compute_individual_alignments:
-            for record in records:
-                if record.id != ref_record.id:
-                    score = clustalo_pairwise_alignment(str(ref_record.seq), str(record.seq))
-                    pairwise_identities[record.id] = score
+            with st.spinner("Running individual alignments (this may take time)..."):
+                for record in records:
+                    if record.id != ref_record.id:
+                        try:
+                            score = clustalo_pairwise_alignment(str(ref_record.seq), str(record.seq))
+                        except Exception as e:
+                            score = None
+                            st.warning(f"⚠️ Alignment failed for {record.id}: {e}")
+                        pairwise_identities[record.id] = score
+                        # live progress update
+                        st.write(f"✓ {record.id} aligned: {score if score is not None else 'Error'}")
 
         with open(fasta_path, 'r') as f:
             seq_data = f.read()
