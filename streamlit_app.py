@@ -15,7 +15,7 @@ import re
 import os
 
 st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
-st.title("🦜 Amino Acid Sequence Analyzer and Classifier")
+st.title("🥜 Amino Acid Sequence Analyzer and Classifier")
 
 aligner = Align.PairwiseAligner()
 aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
@@ -119,6 +119,16 @@ def parse_rows_input(input_str):
                 continue
     return sorted(rows)
 
+def parse_positions(pos_string):
+    pos_set = set()
+    for part in pos_string.split(','):
+        if '-' in part:
+            start, end = part.split('-')
+            pos_set.update(range(int(start), int(end)+1))
+        else:
+            pos_set.add(int(part))
+    return sorted(pos_set)
+
 uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
 ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format)", type=[".fasta"])
 
@@ -148,17 +158,6 @@ if uploaded_file:
         ref_row = st.number_input("Enter the row number of the reference sequence (≥2)", min_value=2, step=1)
 
     aa_pos_input = st.text_input("Enter amino acid positions or ranges (e.g. 5,10-12)", "5,10-12")
-
-    def parse_positions(pos_string):
-        pos_set = set()
-        for part in pos_string.split(','):
-            if '-' in part:
-                start, end = part.split('-')
-                pos_set.update(range(int(start), int(end)+1))
-            else:
-                pos_set.add(int(part))
-        return sorted(pos_set)
-
     compute_individual_alignments = st.checkbox("⚠️ Include individual pairwise alignments for each sequence against the reference (slower but more accurate)")
 
     if st.button("Submit Sequences for Alignment"):
@@ -168,31 +167,40 @@ if uploaded_file:
         names = []
         sequences = []
         invalid_rows = []
+        row_index_map = {}
 
         for i in selected_rows:
             raw_value = df.at[i, seq_col] if pd.notna(df.at[i, seq_col]) else ""
             cleaned_seq = clean_sequence(str(raw_value))
-            name = "_".join(str(df.at[i, col]) for col in name_cols)
             if cleaned_seq:
-                names.append(name[:30].replace(" ", "_"))  # truncate and sanitize ID
+                name = "_".join(str(df.at[i, col]) for col in name_cols)
+                seq_id = name[:30].replace(" ", "_")
+                names.append(seq_id)
                 sequences.append(cleaned_seq)
+                row_index_map[seq_id] = i
             else:
                 invalid_rows.append(i)
 
         if invalid_rows:
-            st.error(f"The following rows have empty or invalid sequences and will be skipped: {invalid_rows}")
+            st.warning(f"Skipping rows with empty/invalid sequences: {invalid_rows}")
+
+        if not sequences:
+            st.error("❌ No valid sequences to process. Please check your input.")
+            st.stop()
 
         records = [SeqRecord(Seq(seq), id=name, description="") for name, seq in zip(names, sequences)]
 
         if use_uploaded_ref:
             ref_record = list(SeqIO.parse(ref_fasta, "fasta"))[0]
         else:
-            ref_idx = selected_rows.index(ref_row)
+            valid_selected_rows = [i for i in selected_rows if i not in invalid_rows]
+            if ref_row not in valid_selected_rows:
+                st.error("❌ Reference row contains an invalid or empty sequence. Please select a different reference.")
+                st.stop()
+            ref_idx = valid_selected_rows.index(ref_row)
             ref_record = records[ref_idx]
 
         all_records = [ref_record] + [r for r in records if r.id != ref_record.id]
-
-        # Store ID mapping for recovery after alignment
         id_map = {r.id[:30]: r.id for r in all_records}
 
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
@@ -299,4 +307,4 @@ if uploaded_file:
         st.dataframe(df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col]))
 
         csv = df_results.to_csv(index=False).encode('utf-8')
-        st.download_button("📅 Export Results as CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
+        st.download_button("🗕 Export Results as CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
