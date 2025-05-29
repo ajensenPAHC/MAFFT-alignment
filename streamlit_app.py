@@ -168,10 +168,7 @@ if uploaded_file:
         except Exception as e:
             st.error(f"Row range selection failed: {e}")
             st.stop()
-    except Exception as e:
-        st.error(f"Row range selection failed: {e}")
-        st.stop()), value=(2, 5))
-        selected_rows = list(range(row_range[0], row_range[1] + 1))
+    
     else:
         selected_rows_input = st.text_input("Enter specific rows or ranges (e.g., 2,4-6,8)", "2,3,4")
         selected_rows = parse_rows_input(selected_rows_input)
