@@ -230,56 +230,26 @@ if uploaded_file:
         pairwise_identities = {}
 
         
-        data = {
-            "Name": [],
-            "MSA Pairwise Identity %": [],
-            "Individual Alignment %": [] if compute_individual_alignments else None
-        }
-        for pos in aa_positions:
-            ref_aa = ref_aligned_seq[ref_map.get(pos, '-')]
-            data[f"AA @ Pos {pos}\n(MSA:{ref_map.get(pos)+1 if ref_map.get(pos) is not None else 'N/A'})"] = [ref_aa]
-
-        data["Name"].append(ref_record.id)
-        data["MSA Pairwise Identity %"].append(100.0)
-        if compute_individual_alignments:
-            data["Individual Alignment %"].append(100.0)
-
-        for record in alignment:
-            if record.id == ref_trunc:
-                continue
-            msa_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
-            ind_align_id = pairwise_identities.get(record.id, None) if compute_individual_alignments else None
-            row = {
-                "Name": id_map.get(record.id, record.id),
-                "MSA Pairwise Identity %": msa_id
-            }
-            if compute_individual_alignments:
-                row["Individual Alignment %"] = ind_align_id
-            for pos in aa_positions:
-                align_idx = ref_map.get(pos)
-                test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
-            for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
-                data[key].append(row[key])
-
-        df_results = pd.DataFrame(data)
+        
         placeholder_table = st.empty()
         placeholder_csv = st.empty()
         styled_table = df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col])
         placeholder_table.dataframe(styled_table)
         csv = df_results.to_csv(index=False)
         placeholder_csv.dataframe(df_results)
-                    if record.id != ref_record.id:
-                        try:
+                    import tracemalloc
+            tracemalloc.start()
+            start_time = time.time()
+            st.info("🔄 Updating individual alignments...")
+            for record in records:
+                if record.id != ref_record.id:
+                    try:
                             score = clustalo_pairwise_alignment(str(ref_record.seq), str(record.seq))
                         except Exception as e:
                             score = None
                             st.warning(f"⚠️ Alignment failed for {record.id}: {e}")
                         pairwise_identities[record.id] = score
                                         current, peak = tracemalloc.get_traced_memory()
-                tracemalloc.stop()
-        st.success(f"⏱️ Individual alignments completed in {time.time() - start_time:.2f} seconds")
-        current, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
             st.success(f"⏱️ Individual alignments completed in {time.time() - start_time:.2f} seconds")
             st.info(f"💾 Memory used: {current / 10**6:.2f} MB (Peak: {peak / 10**6:.2f} MB)")")
