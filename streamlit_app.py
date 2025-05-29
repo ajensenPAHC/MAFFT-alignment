@@ -162,7 +162,12 @@ if uploaded_file:
 
     selection_type = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
     if selection_type == "Range":
+        try:
         row_range = st.slider("Select row range (inclusive)", min_value=2, max_value=int(df.index.max()), value=(2, 5))
+        selected_rows = list(range(row_range[0], row_range[1] + 1))
+    except Exception as e:
+        st.error(f"Row range selection failed: {e}")
+        st.stop()), value=(2, 5))
         selected_rows = list(range(row_range[0], row_range[1] + 1))
     else:
         selected_rows_input = st.text_input("Enter specific rows or ranges (e.g., 2,4-6,8)", "2,3,4")
@@ -243,6 +248,7 @@ if uploaded_file:
                 st.info(f"💾 Memory used: {current / 10**6:.2f} MB (Peak: {peak / 10**6:.2f} MB)")
 
         # Retrieve MSA results
+        result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
         result = requests.get(f"{result_url}/{job_id}/aln-clustal")
         aln_text = result.text
 
@@ -289,7 +295,7 @@ if uploaded_file:
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                data[f"AA @ Pos {pos}\\n((MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
+                data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
 
             for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
                 data[key].append(row[key])
