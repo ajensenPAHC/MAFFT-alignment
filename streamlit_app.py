@@ -336,7 +336,7 @@ if uploaded_file:
         styled_table = df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col])
         placeholder_table.dataframe(styled_table)
         csv = df_results.to_csv(index=False)
-        placeholder_csv.text_area("📄 Live CSV Preview", csv, height=300)
+        placeholder_csv.dataframe(df_results)
 
         # Update only if computing individual alignments
         if compute_individual_alignments:
