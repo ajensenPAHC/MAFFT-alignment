@@ -228,12 +228,7 @@ if uploaded_file:
             st.code(preview.read(), language="text")
 
         pairwise_identities = {}
-        if compute_individual_alignments:
-            import tracemalloc
-            tracemalloc.start()
-            with st.spinner("Running individual alignments (this may take time)..."):
-                start_time = time.time()
-                for record in records:
+                        for record in records:
                     if record.id != ref_record.id:
                         try:
                             score = clustalo_pairwise_alignment(str(ref_record.seq), str(record.seq))
@@ -241,11 +236,10 @@ if uploaded_file:
                             score = None
                             st.warning(f"⚠️ Alignment failed for {record.id}: {e}")
                         pairwise_identities[record.id] = score
-                        st.write(f"✓ {record.id} aligned: {score if score is not None else 'Error'}")
-                current, peak = tracemalloc.get_traced_memory()
+                                        current, peak = tracemalloc.get_traced_memory()
                 tracemalloc.stop()
-                st.success(f"⏱️ Individual alignments completed in {time.time() - start_time:.2f} seconds")
-                st.info(f"💾 Memory used: {current / 10**6:.2f} MB (Peak: {peak / 10**6:.2f} MB)")
+        st.success(f"⏱️ Individual alignments completed in {time.time() - start_time:.2f} seconds")
+        st.info(f"💾 Memory used: {current / 10**6:.2f} MB (Peak: {peak / 10**6:.2f} MB)")")
 
         # Submit MSA job to Clustal Omega
         msa_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
@@ -306,40 +300,10 @@ if uploaded_file:
         data["Name"].append(ref_record.id)
         data["MSA Pairwise Identity %"].append(100.0)
         if compute_individual_alignments:
-            data["Individual Alignment %"].append(100.0)
-
-        for record in alignment:
-            if record.id == ref_trunc:
-                continue
-            msa_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
-            ind_align_id = pairwise_identities.get(record.id, None) if compute_individual_alignments else None
-
-            row = {
-                "Name": id_map.get(record.id, record.id),
-                "MSA Pairwise Identity %": msa_id
-            }
-            if compute_individual_alignments:
-                row["Individual Alignment %"] = ind_align_id
-
-            for pos in aa_positions:
-                align_idx = ref_map.get(pos)
-                test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
-
-            for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
-                data[key].append(row[key])
-
-        # Display full table once after all MSA records processed
-        df_results = pd.DataFrame(data)
-        placeholder_table = st.empty()
-        placeholder_csv = st.empty()
-        styled_table = df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col])
-        placeholder_table.dataframe(styled_table)
-        csv = df_results.to_csv(index=False)
-        
-
-        # Update only if computing individual alignments
-        if compute_individual_alignments:
+        import tracemalloc
+        tracemalloc.start()
+        with st.spinner("Running individual alignments (this may take time)..."):
+            start_time = time.time()
             st.info("🔄 Updating individual alignments...")
             for record in records:
                 if record.id != ref_record.id:
@@ -356,6 +320,6 @@ if uploaded_file:
                     styled_table = df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col])
                     placeholder_table.dataframe(styled_table)
                     csv = df_results.to_csv(index=False)
-                    placeholder_csv.text_area("📄 Live CSV Preview", csv, height=300)
+                    placeholder_csv.dataframe(df_results)
             
         st.download_button("📅 Export Results as CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
