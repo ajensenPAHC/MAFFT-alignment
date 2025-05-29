@@ -324,14 +324,38 @@ if uploaded_file:
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
+                data[f"AA @ Pos {pos}
+(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
 
             for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
                 data[key].append(row[key])
 
-            df_results = pd.DataFrame(data)
-            st.dataframe(df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col]))
-            csv = df_results.to_csv(index=False)
-            st.text_area("📄 Live CSV Preview", csv, height=300)
+        # Display full table once after all MSA records processed
+        df_results = pd.DataFrame(data)
+        placeholder_table = st.empty()
+        placeholder_csv = st.empty()
+        styled_table = df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col])
+        placeholder_table.dataframe(styled_table)
+        csv = df_results.to_csv(index=False)
+        placeholder_csv.text_area("📄 Live CSV Preview", csv, height=300)
+
+        # Update only if computing individual alignments
+        if compute_individual_alignments:
+            for record in records:
+                if record.id != ref_record.id:
+                    try:
+                        score = clustalo_pairwise_alignment(str(ref_record.seq), str(record.seq))
+                        pairwise_identities[record.id] = score
+                        idx = df_results.index[df_results['Name'] == record.id].tolist()
+                        if idx:
+                            df_results.at[idx[0], "Individual Alignment %"] = score
+                    except Exception as e:
+                        st.warning(f"⚠️ Alignment failed for {record.id}: {e}")
+
+                    # Update display with each new individual result
+                    styled_table = df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col])
+                    placeholder_table.dataframe(styled_table)
+                    csv = df_results.to_csv(index=False)
+                    placeholder_csv.text_area("📄 Live CSV Preview", csv, height=300)
             
         st.download_button("📅 Export Results as CSV", data=csv, file_name="alignment_results.csv", mime="text/csv")
