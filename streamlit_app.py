@@ -163,8 +163,11 @@ if uploaded_file:
     selection_type = st.radio("How do you want to select rows?", ["Range", "Specific Rows"])
     if selection_type == "Range":
         try:
-        row_range = st.slider("Select row range (inclusive)", min_value=2, max_value=int(df.index.max()), value=(2, 5))
-        selected_rows = list(range(row_range[0], row_range[1] + 1))
+            row_range = st.slider("Select row range (inclusive)", min_value=2, max_value=int(df.index.max()), value=(2, 5))
+            selected_rows = list(range(row_range[0], row_range[1] + 1))
+        except Exception as e:
+            st.error(f"Row range selection failed: {e}")
+            st.stop()
     except Exception as e:
         st.error(f"Row range selection failed: {e}")
         st.stop()), value=(2, 5))
@@ -247,6 +250,30 @@ if uploaded_file:
                 st.success(f"⏱️ Individual alignments completed in {time.time() - start_time:.2f} seconds")
                 st.info(f"💾 Memory used: {current / 10**6:.2f} MB (Peak: {peak / 10**6:.2f} MB)")
 
+        # Submit MSA job to Clustal Omega
+        msa_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
+        msa_payload = {
+            'email': 'anonymous@example.com',
+            'sequence': open(fasta_path).read(),
+            'stype': 'protein',
+            'outfmt': 'clustal'
+        }
+        msa_response = requests.post(msa_url, data=msa_payload)
+        if not msa_response.ok:
+            st.error("❌ Failed to submit MSA to Clustal Omega.")
+            st.stop()
+        job_id = msa_response.text.strip()
+
+        result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
+
+        # Poll for MSA job completion
+        status_url = msa_url.replace("/run", f"/status/{job_id}")
+        for _ in range(30):
+            status = requests.get(status_url).text.strip()
+            if status == "FINISHED":
+                break
+            time.sleep(2)
+
         # Retrieve MSA results
         result_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/result"
         result = requests.get(f"{result_url}/{job_id}/aln-clustal")
@@ -259,7 +286,12 @@ if uploaded_file:
 
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
-        alignment = AlignIO.read(StringIO(aln_text), "clustal")
+        try:
+            alignment = AlignIO.read(StringIO(aln_text), "clustal")
+        except Exception as e:
+            st.error(f"❌ Failed to parse Clustal Omega alignment: {e}")
+            st.text_area("Raw Output", aln_text, height=300)
+            st.stop()
 
         ref_trunc = ref_record.id[:30]
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
