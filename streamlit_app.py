@@ -274,8 +274,16 @@ if uploaded_file:
             st.exception(e)
             st.text_area("Raw Clustal Output", aln_text, height=300)
             st.stop()
-        ref_trunc = ref_record.id[:30]
-        ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
+        ref_id = ref_record.id
+        matching_seqs = [r.seq for r in alignment if r.id == ref_id]
+
+        if not matching_seqs:
+            st.error(f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:
+" + ", ".join([r.id for r in alignment]))
+            st.text_area("Raw Clustal Output", aln_text, height=300)
+            st.stop()
+
+        ref_aligned_seq = str(matching_seqs[0])
         ref_map = map_ref_positions(ref_aligned_seq)
 
         # Prepare result structure
