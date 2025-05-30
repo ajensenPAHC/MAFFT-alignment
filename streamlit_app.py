@@ -188,17 +188,18 @@ if uploaded_file:
         names, sequences, invalid_rows = [], [], []
         seen_ids = set()
         row_map = {}
-        for i in selected_rows:
-            raw_value = df.at[i, seq_col] if pd.notna(df.at[i, seq_col]) else ""
-            cleaned_seq = clean_sequence(str(raw_value))
-            if cleaned_seq:
-            name = "_".join(str(df.at[i, col]) for col in name_cols)
-            safe_id = sanitize_id(f"{i}_{name}", seen_ids)
-            row_map[safe_id] = i
-            names.append(safe_id)
-            sequences.append(cleaned_seq)
-            else:
-                invalid_rows.append(i)
+        with st.spinner("Cleaning and preparing sequences..."):
+            for i in selected_rows:
+                raw_value = df.at[i, seq_col] if pd.notna(df.at[i, seq_col]) else ""
+                cleaned_seq = clean_sequence(str(raw_value))
+                if cleaned_seq:
+                    name = "_".join(str(df.at[i, col]) for col in name_cols)
+                    safe_id = sanitize_id(f"{i}_{name}", seen_ids)
+                    row_map[safe_id] = i
+                    names.append(safe_id)
+                    sequences.append(cleaned_seq)
+                else:
+                    invalid_rows.append(i)
 
         if invalid_rows:
             st.warning(f"Skipping rows with empty/invalid sequences: {invalid_rows}")
