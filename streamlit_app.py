@@ -284,23 +284,8 @@ if uploaded_file:
 
         if not matching_seqs:
             st.error(f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:
-{', '.join([r.id for r in alignment])}")"] = [ref_aa]
-
-        for record in alignment:
-            if record.id == ref_trunc:
-                continue
-            msa_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
-            row = {
-                "Name": id_map.get(record.id, record.id),
-                "MSA Pairwise Identity %": msa_id
-            }
-            if compute_individual_alignments:
-                row["Individual Alignment %"] = None
-
-            for pos in aa_positions:
-                align_idx = ref_map.get(pos)
-                test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
+{', '.join([r.id for r in alignment])}")
+            st.stop()].append(test_aa)
 
             for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
                 data[key].append(row[key])
