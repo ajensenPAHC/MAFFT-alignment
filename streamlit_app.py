@@ -265,6 +265,10 @@ if uploaded_file:
 
         try:
             alignment = AlignIO.read(StringIO(aln_text), "clustal")
+        except AssertionError:
+            st.error("❌ Clustal Omega returned a malformed alignment (possible consensus error).")
+            st.text_area("Raw Clustal Output", aln_text, height=300)
+            st.stop()
         except Exception as e:
             st.error("❌ Failed to parse Clustal Omega alignment.")
             st.exception(e)
