@@ -283,8 +283,8 @@ if uploaded_file:
         matching_seqs = [r.seq for r in alignment if r.id == ref_id]
 
         if not matching_seqs:
-            st.error(f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:
-" + ", ".join([r.id for r in alignment]))
+            st.error("❌ Reference ID '" + ref_id + "' not found in Clustal alignment. Available IDs:
+" + ", ".join([r.id for r in alignment])))
             st.text_area("Raw Clustal Output", aln_text, height=300)
             st.stop()
 
