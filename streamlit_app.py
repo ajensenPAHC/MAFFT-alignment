@@ -266,7 +266,8 @@ if uploaded_file:
         try:
             alignment = AlignIO.read(StringIO(aln_text), "clustal")
         except Exception as e:
-            st.error(f"❌ Failed to parse Clustal Omega alignment: {e}")
+            st.error("❌ Failed to parse Clustal Omega alignment.")
+            st.exception(e)
             st.text_area("Raw Clustal Output", aln_text, height=300)
             st.stop()
         ref_trunc = ref_record.id[:30]
