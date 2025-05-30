@@ -284,8 +284,9 @@ if uploaded_file:
 
         if not matching_seqs:
     available_ids = ', '.join([r.id for r in alignment])
-    st.error(f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:
-{available_ids}")
+    error_msg = f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:
+{available_ids}"
+    st.error(error_msg)
     st.stop()
 
             for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
