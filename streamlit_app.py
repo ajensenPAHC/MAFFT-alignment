@@ -187,12 +187,14 @@ if uploaded_file:
         aa_positions = parse_positions(aa_pos_input)
         names, sequences, invalid_rows = [], [], []
         seen_ids = set()
+        row_map = {}
         for i in selected_rows:
             raw_value = df.at[i, seq_col] if pd.notna(df.at[i, seq_col]) else ""
             cleaned_seq = clean_sequence(str(raw_value))
             if cleaned_seq:
                 name = "_".join(str(df.at[i, col]) for col in name_cols)
-                safe_id = sanitize_id(name, seen_ids)
+                safe_id = sanitize_id(f"{i}_{name}", seen_ids)
+            row_map[safe_id] = i
                 names.append(safe_id)
                 sequences.append(cleaned_seq)
             else:
@@ -217,7 +219,7 @@ if uploaded_file:
             ref_record = records[ref_idx]
 
         all_records = [ref_record] + [r for r in records if r.id != ref_record.id]
-        id_map = {r.id: r.id for r in all_records}
+        id_map = {r.id: f"{r.id} (Row {row_map[r.id]})" for r in all_records}
 
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
             SeqIO.write(all_records, fasta_file, "fasta")
