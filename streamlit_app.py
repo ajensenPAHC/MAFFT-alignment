@@ -208,7 +208,12 @@ if uploaded_file:
             st.error("❌ No valid sequences to process. Please check your input.")
             st.stop()
 
-        records = [SeqRecord(Seq(seq), id=name, description="") for name, seq in zip(names, sequences)]
+        fasta_id_map = {}
+        records = []
+        for name, seq in zip(names, sequences):
+            fasta_id = name[:20]  # Truncate to avoid Biopython Clustal parser errors
+            fasta_id_map[fasta_id] = name
+            records.append(SeqRecord(Seq(seq), id=fasta_id, description=""))
 
         if use_uploaded_ref:
             ref_record = list(SeqIO.parse(ref_fasta, "fasta"))[0]
@@ -220,7 +225,7 @@ if uploaded_file:
             ref_record = records[ref_idx]
 
         all_records = [ref_record] + [r for r in records if r.id != ref_record.id]
-        id_map = {r.id: f"{r.id} (Row {row_map[r.id]})" for r in all_records}
+        id_map = {r.id: f"{fasta_id_map[r.id]} (Row {row_map[fasta_id_map[r.id]]})" for r in all_records}
 
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".fasta") as fasta_file:
             SeqIO.write(all_records, fasta_file, "fasta")
