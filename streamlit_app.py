@@ -192,11 +192,11 @@ if uploaded_file:
             raw_value = df.at[i, seq_col] if pd.notna(df.at[i, seq_col]) else ""
             cleaned_seq = clean_sequence(str(raw_value))
             if cleaned_seq:
-                name = "_".join(str(df.at[i, col]) for col in name_cols)
-                safe_id = sanitize_id(f"{i}_{name}", seen_ids)
+            name = "_".join(str(df.at[i, col]) for col in name_cols)
+            safe_id = sanitize_id(f"{i}_{name}", seen_ids)
             row_map[safe_id] = i
-                names.append(safe_id)
-                sequences.append(cleaned_seq)
+            names.append(safe_id)
+            sequences.append(cleaned_seq)
             else:
                 invalid_rows.append(i)
 
