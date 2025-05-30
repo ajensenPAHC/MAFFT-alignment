@@ -263,7 +263,12 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
-        alignment = AlignIO.read(StringIO(aln_text), "clustal")
+        try:
+            alignment = AlignIO.read(StringIO(aln_text), "clustal")
+        except Exception as e:
+            st.error(f"❌ Failed to parse Clustal Omega alignment: {e}")
+            st.text_area("Raw Clustal Output", aln_text, height=300)
+            st.stop()
         ref_trunc = ref_record.id[:30]
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
         ref_map = map_ref_positions(ref_aligned_seq)
