@@ -284,25 +284,7 @@ if uploaded_file:
 
         if not matching_seqs:
             st.error(f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:
-{', '.join([r.id for r in alignment])}")
-            st.text_area("Raw Clustal Output", aln_text, height=300)
-            st.stop()
-
-        ref_aligned_seq = str(matching_seqs[0])
-        ref_map = map_ref_positions(ref_aligned_seq)
-
-        # Prepare result structure
-        data = {
-            "Name": [ref_record.id],
-            "MSA Pairwise Identity %": [100.0]
-        }
-        if compute_individual_alignments:
-            data["Individual Alignment %"] = [100.0]
-
-        for pos in aa_positions:
-            align_idx = ref_map.get(pos)
-            ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else "-"
-            data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"] = [ref_aa]
+{', '.join([r.id for r in alignment])}")"] = [ref_aa]
 
         for record in alignment:
             if record.id == ref_trunc:
