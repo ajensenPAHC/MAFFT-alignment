@@ -277,16 +277,17 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
-      def strip_clustal_consensus(clustal_text):/n lines = clustal_text.splitlines()
-        stripped = []
-        for line in lines:
-            if not line.strip():
-                continue
-            if re.match(r'^\s*[.*:]+\s*$', line):
-                continue
-            if re.match(r'^[A-Za-z0-9_\-]+\s+[A-Z\-]+', line.strip()):
-                stripped.append(line)
-        return "\n".join(stripped) + "\n"
+        def strip_clustal_consensus(clustal_text):
+            lines = clustal_text.splitlines()
+            stripped = []
+            for line in lines:
+                if not line.strip():
+                    continue
+                if re.match(r'^\s*[.*:]+\s*$', line):
+                    continue
+                if re.match(r'^[A-Za-z0-9_\-]+\s+[A-Z\-]+', line.strip()):
+                    stripped.append(line)
+            return "\n".join(stripped) + "\n"
 
         ref_id = ref_record.id
         matching_seqs = [r.seq for r in alignment if r.id == ref_id]
