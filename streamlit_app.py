@@ -292,8 +292,7 @@ if uploaded_file:
 
         if not matching_seqs:
             available_ids = ', '.join([r.id for r in alignment])
-            error_msg = f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:
-{available_ids}"
+            error_msg = f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:\\n {available_ids}"
             st.error(error_msg)
             st.stop()
 
