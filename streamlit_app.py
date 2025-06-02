@@ -129,6 +129,17 @@ def parse_rows_input(input_str):
                 continue
     return sorted(rows)
 
+def strip_clustal_consensus(clustal_text):
+    lines = clustal_text.splitlines()
+    stripped = []
+    for line in lines:
+        if line.strip() == "":
+            continue
+        if re.match(r'^\s*[.*:]+\s*$', line):
+            continue  # skip consensus lines
+        stripped.append(line)
+    return "\n".join(stripped)
+    
 def parse_positions(pos_string):
     pos_set = set()
     for part in pos_string.split(','):
@@ -267,8 +278,9 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
+        cleaned_clustal_text = strip_clustal_consensus(aln_text)
         try:
-            alignments = list(AlignIO.parse(StringIO(aln_text), "clustal"))
+            alignments = list(AlignIO.parse(StringIO(cleaned_clustal_text), "clustal"))
             alignment = alignments[0]
         except IndexError:
             st.error("❌ No alignments found in Clustal Omega result. This usually means parsing failed or output was malformed.")
