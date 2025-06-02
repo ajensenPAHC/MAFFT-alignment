@@ -277,8 +277,7 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
-      def strip_clustal_consensus(clustal_text):
-        lines = clustal_text.splitlines()
+      def strip_clustal_consensus(clustal_text):/n lines = clustal_text.splitlines()
         stripped = []
         for line in lines:
             if not line.strip():
