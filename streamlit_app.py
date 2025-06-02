@@ -163,11 +163,11 @@ ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format
 if uploaded_file:
     excel = pd.ExcelFile(uploaded_file)
     sheet_name = st.selectbox("Select sheet", excel.sheet_names)
-    df = excel.parse(sheet_name)
+    df = excel.parse(sheet_name).astype(str)
     df.index += 2
 
     st.subheader("📋 Excel Preview")
-    st.dataframe(df.head(10))
+    st.dataframe(df.head(10).astype(str))
 
     name_cols = st.multiselect("Select columns to create sequence names", df.columns)
     seq_col = st.selectbox("Select column for amino acid sequence", df.columns)
