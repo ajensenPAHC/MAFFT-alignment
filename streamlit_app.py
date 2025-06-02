@@ -15,7 +15,7 @@ import re
 import os
 
 st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
-st.title("🥜 Amino Acid Sequence Analyzer and Classifier")
+st.title("🧁 Amino Acid Sequence Analyzer and Classifier")
 
 aligner = Align.PairwiseAligner()
 aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
@@ -168,7 +168,7 @@ if uploaded_file:
         except Exception as e:
             st.error(f"Row range selection failed: {e}")
             st.stop()
-    
+
     else:
         selected_rows_input = st.text_input("Enter specific rows or ranges (e.g., 2,4-6,8)", "2,3,4")
         selected_rows = parse_rows_input(selected_rows_input)
@@ -211,7 +211,7 @@ if uploaded_file:
         fasta_id_map = {}
         records = []
         for name, seq in zip(names, sequences):
-            fasta_id = name[:20]  # Truncate to avoid Biopython Clustal parser errors
+            fasta_id = name[:20]
             fasta_id_map[fasta_id] = name
             records.append(SeqRecord(Seq(seq), id=fasta_id, description=""))
 
@@ -237,7 +237,6 @@ if uploaded_file:
 
         pairwise_identities = {}
 
-        # Submit MSA job to Clustal Omega
         msa_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
         msa_payload = {
             'email': 'anonymous@example.com',
@@ -269,7 +268,12 @@ if uploaded_file:
         st.code(aln_text, language="text")
 
         try:
-            alignment = AlignIO.read(StringIO(aln_text), "clustal")
+            alignments = list(AlignIO.parse(StringIO(aln_text), "clustal"))
+            if not alignments:
+                st.error("❌ No alignments found in Clustal Omega result.")
+                st.text_area("Raw Clustal Output", aln_text, height=300)
+                st.stop()
+            alignment = alignments[0]
         except AssertionError:
             st.error("❌ Clustal Omega returned a malformed alignment (possible consensus error).")
             st.text_area("Raw Clustal Output", aln_text, height=300)
@@ -288,7 +292,22 @@ if uploaded_file:
             st.error(error_msg)
             st.stop()
 
-            for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
+        data = {"Name": [], "MSA Pairwise Identity %": []}
+        if compute_individual_alignments:
+            data["Individual Alignment %"] = []
+
+        ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_id][0])
+        for rec in alignment:
+            if rec.id == ref_id:
+                continue
+            msa_identity = compute_jalview_identity(ref_aligned_seq, str(rec.seq))
+            row = {
+                "Name": id_map.get(rec.id, rec.id),
+                "MSA Pairwise Identity %": msa_identity
+            }
+            if compute_individual_alignments:
+                row["Individual Alignment %"] = "Pending"
+            for key in row:
                 data[key].append(row[key])
 
         df_results = pd.DataFrame(data)
@@ -299,7 +318,6 @@ if uploaded_file:
         csv = df_results.to_csv(index=False)
         st.download_button("📅 Export Results as CSV", data=csv.encode('utf-8'), file_name="alignment_results.csv", mime="text/csv")
 
-        # Optional individual alignment processing
         if compute_individual_alignments:
             import tracemalloc
             tracemalloc.start()
