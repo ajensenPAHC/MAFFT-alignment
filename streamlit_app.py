@@ -171,7 +171,7 @@ if uploaded_file and submit_button:
             results["Identity %"].append(identity)
 
         if pairwise_toggle:
-            st.subheader("🔁 Running pairwise alignments...")
+    st.subheader("🔁 Running pairwise alignments...")
     for sid, row in ids:
         if sid == ref_record.id:
             continue
