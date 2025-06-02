@@ -171,74 +171,10 @@ if uploaded_file and submit_button:
             results["Identity %"].append(identity)
 
         if pairwise_toggle:
-        st.subheader("🔁 Running pairwise alignments...")
-        for sid, row in ids:
-            if sid == ref_record.id:
-                continue
-            rec = next((r for r in sequences if r.id == sid), None)
-            if rec:
-                pair_fasta = f">REF
-{str(ref_record.seq)}
->{rec.id}
-{str(rec.seq)}"
-                raw_pair_align = clustalo_api_fasta(pair_fasta)
-                try:
-                    cleaned_pair = strip_clustal_consensus(raw_pair_align)
-                    pair_parsed = list(AlignIO.parse(StringIO(cleaned_pair), "clustal"))
-                    if pair_parsed:
-                        pair_seqs = {r.id: str(r.seq) for r in pair_parsed[0]}
-                        ref_aln = pair_seqs.get("REF")
-                        test_aln = pair_seqs.get(rec.id)
-                        if ref_aln and test_aln:
-                            if aa_position_filter:
-                                try:
-                                    positions = parse_positions(aa_position_filter)
-                                    ref_aln = ''.join([ref_aln[p-1] for p in positions if p <= len(ref_aln)])
-                                    test_aln = ''.join([test_aln[p-1] for p in positions if p <= len(test_aln)])
-                                except:
-                                    pass
-                            identity = compute_jalview_identity(ref_aln, test_aln)
-                            idx = results["Name"].index(f"{rec.id} (Row {row})")
-                            results.setdefault("Pairwise %", ["" for _ in range(len(results["Name"]))])
-                            results["Pairwise %"][idx] = identity
-                except Exception as e:
-                    st.warning(f"⚠️ Failed pairwise for {rec.id}: {e}")
-                time.sleep(1)  # Avoid rate limiting
-    for sid, row in ids:
-        if sid == ref_record.id:
-            continue
-        rec = next((r for r in sequences if r.id == sid), None)
-        if rec:
-            pair_fasta = f">REF
-{str(ref_record.seq)}
->{rec.id}
-{str(rec.seq)}"
-            raw_pair_align = clustalo_api_fasta(pair_fasta)
-            try:
-                cleaned_pair = strip_clustal_consensus(raw_pair_align)
-                pair_parsed = list(AlignIO.parse(StringIO(cleaned_pair), "clustal"))
-                if pair_parsed:
-                    pair_seqs = {r.id: str(r.seq) for r in pair_parsed[0]}
-                    ref_aln = pair_seqs.get("REF")
-                    test_aln = pair_seqs.get(rec.id)
-                    if ref_aln and test_aln:
-                        if aa_position_filter:
-                            try:
-                                positions = parse_positions(aa_position_filter)
-                                ref_aln = ''.join([ref_aln[p-1] for p in positions if p <= len(ref_aln)])
-                                test_aln = ''.join([test_aln[p-1] for p in positions if p <= len(test_aln)])
-                            except: pass
-                        identity = compute_jalview_identity(ref_aln, test_aln)
-                        idx = results["Name"].index(f"{rec.id} (Row {row})")
-                        results.setdefault("Pairwise %", ["" for _ in range(len(results["Name"]))])
-                        results["Pairwise %"][idx] = identity
-            except Exception as e:
-                st.warning(f"⚠️ Failed pairwise for {rec.id}: {e}")
-
-        time.sleep(1)  # Avoid rate limiting
-
+    st.subheader("🔁 Running pairwise alignments...")
+        
 df_out = pd.DataFrame(results).astype(str)
-        st.dataframe(df_out.style.background_gradient(cmap="Blues", subset=["Identity %"]))
+st.dataframe(df_out.style.background_gradient(cmap="Blues", subset=["Identity %"]))
         st.download_button("📥 Download CSV", data=df_out.to_csv(index=False).encode('utf-8'), file_name="results.csv", mime="text/csv")
 
     except Exception as e:
