@@ -14,6 +14,17 @@ from matplotlib import cm
 import re
 import os
 
+def strip_clustal_consensus(clustal_text):
+    lines = clustal_text.splitlines()
+    stripped = []
+    for line in lines:
+        if line.strip() == "":
+            continue
+        if re.match(r'^\s*[.*:]+\s*$', line):
+            continue
+        stripped.append(line)
+    return "\n".join(stripped)
+
 st.set_page_config(page_title="Amino Acid Sequence Analyzer", layout="wide")
 st.title("🧁 Amino Acid Sequence Analyzer and Classifier")
 
@@ -84,7 +95,8 @@ def clustalo_pairwise_alignment(ref_seq, test_seq):
     if not alignment_text.startswith("CLUSTAL"):
         return None
 
-    alignments = AlignIO.read(StringIO(alignment_text), "clustal")
+    cleaned_clustal_text = strip_clustal_consensus(alignment_text)
+    alignments = list(AlignIO.parse(StringIO(cleaned_clustal_text), "clustal"))
     seqs = {rec.id: str(rec.seq) for rec in alignments}
     if 'ref' in seqs and 'query' in seqs:
         return compute_jalview_identity(seqs['ref'], seqs['query'])
@@ -129,17 +141,6 @@ def parse_rows_input(input_str):
                 continue
     return sorted(rows)
 
-def strip_clustal_consensus(clustal_text):
-    lines = clustal_text.splitlines()
-    stripped = []
-    for line in lines:
-        if line.strip() == "":
-            continue
-        if re.match(r'^\s*[.*:]+\s*$', line):
-            continue  # skip consensus lines
-        stripped.append(line)
-    return "\n".join(stripped)
-    
 def parse_positions(pos_string):
     pos_set = set()
     for part in pos_string.split(','):
@@ -179,7 +180,6 @@ if uploaded_file:
         except Exception as e:
             st.error(f"Row range selection failed: {e}")
             st.stop()
-
     else:
         selected_rows_input = st.text_input("Enter specific rows or ranges (e.g., 2,4-6,8)", "2,3,4")
         selected_rows = parse_rows_input(selected_rows_input)
@@ -199,6 +199,7 @@ if uploaded_file:
         names, sequences, invalid_rows = [], [], []
         seen_ids = set()
         row_map = {}
+
         with st.spinner("Cleaning and preparing sequences..."):
             for i in selected_rows:
                 raw_value = df.at[i, seq_col] if pd.notna(df.at[i, seq_col]) else ""
@@ -246,8 +247,6 @@ if uploaded_file:
             st.subheader("🗒 Preview of FASTA File Sent to Alignment Server")
             st.code(preview.read(), language="text")
 
-        pairwise_identities = {}
-
         msa_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
         msa_payload = {
             'email': 'anonymous@example.com',
@@ -282,30 +281,19 @@ if uploaded_file:
         try:
             alignments = list(AlignIO.parse(StringIO(cleaned_clustal_text), "clustal"))
             alignment = alignments[0]
-        except IndexError:
-            st.error("❌ No alignments found in Clustal Omega result. This usually means parsing failed or output was malformed.")
-            st.text_area("Raw Clustal Output", aln_text, height=300)
-            st.stop()
-        except Exception as e:
-            st.error("❌ Unexpected error while parsing Clustal Omega output.")
-            st.exception(e)
-            st.text_area("Raw Clustal Output", aln_text, height=300)
-            st.stop()
-        except AssertionError:
-            st.error("❌ Clustal Omega returned a malformed alignment (possible consensus error).")
-            st.text_area("Raw Clustal Output", aln_text, height=300)
-            st.stop()
         except Exception as e:
             st.error("❌ Failed to parse Clustal Omega alignment.")
             st.exception(e)
             st.text_area("Raw Clustal Output", aln_text, height=300)
             st.stop()
+
         ref_id = ref_record.id
         matching_seqs = [r.seq for r in alignment if r.id == ref_id]
 
         if not matching_seqs:
             available_ids = ', '.join([r.id for r in alignment])
-            error_msg = f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:\n{available_ids}"
+            error_msg = f"❌ Reference ID '{ref_id}' not found in Clustal alignment. Available IDs:
+{available_ids}"
             st.error(error_msg)
             st.stop()
 
@@ -327,7 +315,7 @@ if uploaded_file:
             for key in row:
                 data[key].append(row[key])
 
-        df_results = pd.DataFrame(data)
+        df_results = pd.DataFrame(data).astype(str)
         styled_table = df_results.style.map(color_identity, subset=[col for col in df_results.columns if "%" in col])
         placeholder_table = st.empty()
         placeholder_table.dataframe(styled_table)
@@ -345,9 +333,9 @@ if uploaded_file:
                     continue
                 try:
                     score = clustalo_pairwise_alignment(str(ref_record.seq), str(record.seq))
-                    idx = df_results.index[df_results['Name'] == record.id].tolist()
+                    idx = df_results.index[df_results['Name'] == id_map.get(record.id, record.id)].tolist()
                     if idx:
-                        df_results.at[idx[0], "Individual Alignment %"] = score
+                        df_results.at[idx[0], "Individual Alignment %"] = str(score)
                 except Exception as e:
                     st.warning(f"⚠️ Alignment failed for {record.id}: {e}")
                 progress.progress((i + 1) / len(records))
