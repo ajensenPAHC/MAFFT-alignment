@@ -269,11 +269,16 @@ if uploaded_file:
 
         try:
             alignments = list(AlignIO.parse(StringIO(aln_text), "clustal"))
-            if not alignments:
-                st.error("❌ No alignments found in Clustal Omega result.")
-                st.text_area("Raw Clustal Output", aln_text, height=300)
-                st.stop()
             alignment = alignments[0]
+        except IndexError:
+            st.error("❌ No alignments found in Clustal Omega result. This usually means parsing failed or output was malformed.")
+            st.text_area("Raw Clustal Output", aln_text, height=300)
+            st.stop()
+        except Exception as e:
+            st.error("❌ Unexpected error while parsing Clustal Omega output.")
+            st.exception(e)
+            st.text_area("Raw Clustal Output", aln_text, height=300)
+            st.stop()
         except AssertionError:
             st.error("❌ Clustal Omega returned a malformed alignment (possible consensus error).")
             st.text_area("Raw Clustal Output", aln_text, height=300)
