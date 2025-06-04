@@ -275,11 +275,11 @@ if uploaded_file:
 
         ref_trunc = ref_record.id[:30]
         try:
-    ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
-    ref_map = map_ref_positions(ref_aligned_seq)
+            ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
+            ref_map = map_ref_positions(ref_aligned_seq)
         except IndexError:
-                st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
-    st.stop()
+            st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
+            st.stop()
 
         data = {
             "Name": [ref_record.id],
