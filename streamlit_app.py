@@ -6,6 +6,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Align import substitution_matrices
 from Bio import Align
 from Bio import AlignIO
+from Bio.File import as_handle
 import tempfile
 import requests
 import time
@@ -85,7 +86,8 @@ def clustalo_pairwise_alignment(ref_seq, test_seq):
         return None
 
     try:
-        alignments = list(AlignIO.parse(StringIO(alignment_text), "clustal"))
+        with as_handle(StringIO(alignment_text), mode="r") as handle:
+            alignments = list(AlignIO.parse(handle, "clustal"))
         if not alignments or len(alignments[0]) < 2:
             raise ValueError("Parsed alignment does not contain enough sequences.")
         seqs = {rec.id: str(rec.seq) for rec in alignments[0]}
@@ -175,7 +177,6 @@ if uploaded_file:
         except Exception as e:
             st.error(f"Row range selection failed: {e}")
             st.stop()
-    
     else:
         selected_rows_input = st.text_input("Enter specific rows or ranges (e.g., 2,4-6,8)", "2,3,4")
         selected_rows = parse_rows_input(selected_rows_input)
@@ -236,7 +237,6 @@ if uploaded_file:
 
         pairwise_identities = {}
 
-        # Submit MSA job to Clustal Omega
         msa_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
         msa_payload = {
             'email': 'anonymous@example.com',
@@ -267,12 +267,13 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
-        alignment = AlignIO.read(StringIO(aln_text), "clustal")
+        with as_handle(StringIO(aln_text), mode="r") as handle:
+            alignment = AlignIO.read(handle, "clustal")
+
         ref_trunc = ref_record.id[:30]
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
         ref_map = map_ref_positions(ref_aligned_seq)
 
-        # Prepare result structure
         data = {
             "Name": [ref_record.id],
             "MSA Pairwise Identity %": [100.0]
@@ -283,7 +284,8 @@ if uploaded_file:
         for pos in aa_positions:
             align_idx = ref_map.get(pos)
             ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else "-"
-            data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"] = [ref_aa]
+            data[f"AA @ Pos {pos}
+(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"] = [ref_aa]
 
         for record in alignment:
             if record.id == ref_trunc:
@@ -299,7 +301,8 @@ if uploaded_file:
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                data[f"AA @ Pos {pos}\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
+                data[f"AA @ Pos {pos}
+(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
 
             for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
                 data[key].append(row[key])
@@ -312,7 +315,6 @@ if uploaded_file:
         csv = df_results.to_csv(index=False)
         st.download_button("📅 Export Results as CSV", data=csv.encode('utf-8'), file_name="alignment_results.csv", mime="text/csv")
 
-        # Optional individual alignment processing
         if compute_individual_alignments:
             import tracemalloc
             tracemalloc.start()
