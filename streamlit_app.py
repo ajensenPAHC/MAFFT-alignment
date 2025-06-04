@@ -1,20 +1,33 @@
+# Streamlit Amino Acid Sequence Analyzer – Fully Merged
+
 import streamlit as st
 import pandas as pd
 from Bio import AlignIO, SeqIO, Align
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio.Align import substitution_matrices
 import requests, tempfile, time, re, os
 from io import StringIO
+from matplotlib import cm
 
 st.set_page_config(page_title="Amino Acid Analyzer", layout="wide")
 st.title("🧬 Amino Acid Sequence Alignment & Identity Tool")
 
+# === Config ===
 pairwise_toggle = st.checkbox("Include individual pairwise alignments (Clustal Omega)")
 aa_position_filter = st.text_input("Optional: Filter by AA positions (e.g. 5,10-12)", "")
 
+aligner = Align.PairwiseAligner()
+aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
+aligner.mode = 'global'
+aligner.open_gap_score = -10
+aligner.extend_gap_score = -0.5
+
+valid_aa_chars = set("ACDEFGHIKLMNPQRSTVWY-")
+
 # === Utilities ===
 def clean_sequence(seq):
-    return ''.join([aa for aa in seq.upper() if aa in "ACDEFGHIKLMNPQRSTVWY-"])
+    return ''.join([aa for aa in seq.upper() if aa in valid_aa_chars])
 
 def sanitize_id(base_id, used):
     base = re.sub(r'[^A-Za-z0-9_]', '_', base_id)[:30]
@@ -43,12 +56,6 @@ def compute_jalview_identity(seq1, seq2):
         if a == b: match += 1
     return round((match / total) * 100, 2) if total > 0 else 0
 
-def strip_clustal_consensus(text):
-    return "\n".join(
-        line for line in text.splitlines()
-        if line.strip() and not re.match(r'^[\s.:*]+$', line)
-    ) + "\n"
-
 def clustalo_api_fasta(fasta_str):
     run_url = "https://www.ebi.ac.uk/Tools/services/rest/clustalo/run"
     payload = {"email": "anon@example.com", "sequence": fasta_str, "stype": "protein", "outfmt": "clustal"}
@@ -67,7 +74,24 @@ def clustalo_api_fasta(fasta_str):
         st.error(f"❌ Clustal Omega failed: {e}")
         return ""
 
-# === Upload ===
+def strip_clustal_consensus(text):
+    return "\n".join(
+        line for line in text.splitlines()
+        if line.strip() and not re.match(r'^[\s.:*]+$', line)
+    ) + "\n"
+
+def color_identity(val):
+    try:
+        val = float(val)
+        norm_val = val / 100
+        rgba = cm.Blues(norm_val)
+        bg_color = f"rgba({int(255*rgba[0])},{int(255*rgba[1])},{int(255*rgba[2])},{rgba[3]})"
+        text_color = "#FFF" if val >= 70 else "#000"
+        return f"background-color: {bg_color}; color: {text_color}"
+    except:
+        return ""
+
+# === File Upload ===
 uploaded_file = st.file_uploader("Upload Excel with sequences", type="xlsx")
 uploaded_fasta = st.file_uploader("Optional: Reference FASTA file", type="fasta")
 submit_button = st.button("🚀 Run Alignment")
@@ -80,6 +104,7 @@ if uploaded_file and submit_button:
 
         name_cols = st.multiselect("Columns to name sequences", df.columns)
         seq_col = st.selectbox("Column with amino acid sequences", df.columns)
+
         selection_mode = st.radio("Select rows by", ["Slider", "Manual"])
         if selection_mode == "Slider":
             min_row, max_row = int(df.index.min()), int(df.index.max())
@@ -152,7 +177,7 @@ if uploaded_file and submit_button:
             st.error(f"Reference ID '{ref_record.id}' not found in alignment.")
             st.stop()
 
-        results = {"Name": [], "Identity %": []}
+        results = {"Name": [], "MSA Identity %": []}
         for rec in alignment:
             if rec.id == ref_record.id:
                 continue
@@ -168,13 +193,41 @@ if uploaded_file and submit_button:
             identity = compute_jalview_identity(aligned_ref, aligned_seq)
             label = next((f"{i[0]} (Row {i[1]})" for i in ids if i[0] == rec.id), rec.id)
             results["Name"].append(label)
-            results["Identity %"].append(identity)
+            results["MSA Identity %"].append(identity)
 
         if pairwise_toggle:
-    st.subheader("🔁 Running pairwise alignments...")
-        
-df_out = pd.DataFrame(results).astype(str)
-st.dataframe(df_out.style.background_gradient(cmap="Blues", subset=["Identity %"]))
+            st.subheader("🔁 Running pairwise alignments...")
+            for sid, row in ids:
+                if sid == ref_record.id:
+                    continue
+                rec = next((r for r in sequences if r.id == sid), None)
+                if rec:
+                    pair_fasta = f">REF\n{str(ref_record.seq)}\n>{rec.id}\n{str(rec.seq)}"
+                    raw_pair_align = clustalo_api_fasta(pair_fasta)
+                    try:
+                        cleaned_pair = strip_clustal_consensus(raw_pair_align)
+                        pair_parsed = list(AlignIO.parse(StringIO(cleaned_pair), "clustal"))
+                        if pair_parsed:
+                            pair_seqs = {r.id: str(r.seq) for r in pair_parsed[0]}
+                            ref_aln = pair_seqs.get("REF")
+                            test_aln = pair_seqs.get(rec.id)
+                            if ref_aln and test_aln:
+                                if aa_position_filter:
+                                    try:
+                                        positions = parse_positions(aa_position_filter)
+                                        ref_aln = ''.join([ref_aln[p-1] for p in positions if p <= len(ref_aln)])
+                                        test_aln = ''.join([test_aln[p-1] for p in positions if p <= len(test_aln)])
+                                    except: pass
+                                identity = compute_jalview_identity(ref_aln, test_aln)
+                                idx = results["Name"].index(f"{rec.id} (Row {row})")
+                                results.setdefault("Pairwise %", ["" for _ in range(len(results["Name"]))])
+                                results["Pairwise %"][idx] = identity
+                    except Exception as e:
+                        st.warning(f"⚠️ Failed pairwise for {rec.id}: {e}")
+                    time.sleep(1)
+
+        df_out = pd.DataFrame(results).astype(str)
+        st.dataframe(df_out.style.map(color_identity, subset=[col for col in df_out.columns if "%" in col]))
         st.download_button("📥 Download CSV", data=df_out.to_csv(index=False).encode('utf-8'), file_name="results.csv", mime="text/csv")
 
     except Exception as e:
