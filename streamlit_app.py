@@ -199,6 +199,7 @@ if uploaded_file:
             cleaned_seq = clean_sequence(str(raw_value))
             if cleaned_seq and cleaned_seq.upper() != 'NAN' and cleaned_seq != '' and cleaned_seq != 'nan':
                 name = f"row{i}_" + "_".join(str(df.at[i, col]) for col in name_cols)
+                name = name[:30]  # truncate to 30 characters before sanitization
                 safe_id = sanitize_id(name, seen_ids)
                 names.append(safe_id)
                 sequences.append(cleaned_seq)
@@ -273,7 +274,11 @@ if uploaded_file:
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_trunc = ref_record.id[:30]
-        ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
+try:
+    ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
+except IndexError:
+    st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
+    st.stop()
         ref_map = map_ref_positions(ref_aligned_seq)
 
         data = {
