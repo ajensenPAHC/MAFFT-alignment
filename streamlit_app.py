@@ -84,11 +84,18 @@ def clustalo_pairwise_alignment(ref_seq, test_seq):
     if not alignment_text.startswith("CLUSTAL"):
         return None
 
-    alignments = AlignIO.read(StringIO(alignment_text), "clustal")
-    seqs = {rec.id: str(rec.seq) for rec in alignments}
-    if 'ref' in seqs and 'query' in seqs:
-        return compute_jalview_identity(seqs['ref'], seqs['query'])
-    return None
+    try:
+        alignments = list(AlignIO.parse(StringIO(alignment_text), "clustal"))
+        if not alignments or len(alignments[0]) < 2:
+            raise ValueError("Parsed alignment does not contain enough sequences.")
+        seqs = {rec.id: str(rec.seq) for rec in alignments[0]}
+        if 'ref' in seqs and 'query' in seqs:
+            return compute_jalview_identity(seqs['ref'], seqs['query'])
+        else:
+            raise ValueError("Required sequences ('ref' and 'query') not found in alignment.")
+    except Exception as e:
+        st.error(f"❌ Alignment parsing failed: {e}")
+        return None
 
 def map_ref_positions(seq):
     mapping = {}
