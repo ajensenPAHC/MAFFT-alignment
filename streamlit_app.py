@@ -159,7 +159,7 @@ ref_fasta = st.file_uploader("(Optional) Upload reference sequence (FASTA format
 if uploaded_file:
     excel = pd.ExcelFile(uploaded_file)
     sheet_name = st.selectbox("Select sheet", excel.sheet_names)
-    df = excel.parse(sheet_name)
+    df = excel.parse(sheet_name).astype(str)
     df.index += 2
 
     st.subheader("📋 Excel Preview")
