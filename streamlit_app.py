@@ -197,7 +197,7 @@ if uploaded_file:
         for i in selected_rows:
             raw_value = df.at[i, seq_col] if pd.notna(df.at[i, seq_col]) else ""
             cleaned_seq = clean_sequence(str(raw_value))
-            if cleaned_seq and cleaned_seq != '':
+            if cleaned_seq and cleaned_seq.upper() != 'NAN' and cleaned_seq != '' and cleaned_seq != 'nan':
                 name = f"row{i}_" + "_".join(str(df.at[i, col]) for col in name_cols)
                 safe_id = sanitize_id(name, seen_ids)
                 names.append(safe_id)
@@ -210,6 +210,10 @@ if uploaded_file:
 
         if not sequences:
             st.error("❌ No valid sequences to process. Please check your input.")
+            st.stop()
+
+        if len(sequences) < 2:
+            st.error("❌ At least two valid sequences are required for multiple sequence alignment.")
             st.stop()
 
         records = [SeqRecord(Seq(seq), id=name, description="") for name, seq in zip(names, sequences)]
