@@ -199,7 +199,7 @@ if uploaded_file:
             cleaned_seq = clean_sequence(str(raw_value))
             if cleaned_seq and cleaned_seq.upper() != 'NAN' and cleaned_seq != '' and cleaned_seq != 'nan':
                 name = f"row{i}_" + "_".join(str(df.at[i, col]) for col in name_cols)
-                name = name[:30]  # truncate to 30 characters before sanitization
+                name = name[:20]  # truncate to 20 characters before sanitization
                 safe_id = sanitize_id(name, seen_ids)
                 names.append(safe_id)
                 sequences.append(cleaned_seq)
