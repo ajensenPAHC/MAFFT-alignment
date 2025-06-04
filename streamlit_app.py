@@ -280,7 +280,6 @@ try:
 except IndexError:
     st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
     st.stop()
-        ref_map = map_ref_positions(ref_aligned_seq)
 
         data = {
             "Name": [ref_record.id],
