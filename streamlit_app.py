@@ -299,8 +299,7 @@ if uploaded_file:
             for pos in aa_positions:
                 align_idx = ref_map.get(pos)
                 test_aa = str(record.seq[align_idx]) if align_idx is not None else "-"
-                data[f"AA @ Pos {pos}
-(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
+                data[f"AA @ Pos {pos}\\n(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"].append(test_aa)
 
             for key in ["Name", "MSA Pairwise Identity %"] + (["Individual Alignment %"] if compute_individual_alignments else []):
                 data[key].append(row[key])
