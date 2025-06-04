@@ -284,7 +284,7 @@ if uploaded_file:
             align_idx = ref_map.get(pos)
             ref_aa = ref_aligned_seq[align_idx] if align_idx is not None else "-"
             data[f"AA @ Pos {pos}
-(MSA:{align_idx+1 if align_idx is not None else 'N/A'})"] = [ref_aa]
+            (MSA:{align_idx+1 if align_idx is not None else 'N/A'})"] = [ref_aa]
 
         for record in alignment:
             if record.id == ref_trunc:
