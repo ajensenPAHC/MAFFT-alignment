@@ -267,8 +267,7 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
-        with as_handle(StringIO(aln_text), mode="r") as handle:
-            alignment = AlignIO.read(handle, "clustal")
+        alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_trunc = ref_record.id[:30]
         ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
