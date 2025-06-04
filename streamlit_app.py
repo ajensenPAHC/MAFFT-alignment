@@ -86,8 +86,7 @@ def clustalo_pairwise_alignment(ref_seq, test_seq):
         return None
 
     try:
-        with as_handle(StringIO(alignment_text), mode="r") as handle:
-            alignments = list(AlignIO.parse(handle, "clustal"))
+        alignments = list(AlignIO.parse(StringIO(alignment_text), "clustal"))
         if not alignments or len(alignments[0]) < 2:
             raise ValueError("Parsed alignment does not contain enough sequences.")
         seqs = {rec.id: str(rec.seq) for rec in alignments[0]}
