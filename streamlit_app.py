@@ -273,14 +273,10 @@ if uploaded_file:
 
         import traceback
         try:
-            with as_handle(StringIO(aln_text), "r") as handle:
-                alignment_blocks = list(AlignIO.parse(handle, "clustal"))
-                if not alignment_blocks or len(alignment_blocks[0]) < 2:
-                    raise ValueError("Parsed alignment does not contain enough sequences.")
-                alignment = alignment_blocks[0]
-                st.text("✅ Alignment block IDs returned:")
-                st.code("\n".join([rec.id for rec in alignment]))
-                st.text_area("Raw ClustalO Output Start", "\n".join(aln_text.splitlines()[:20]), height=300)
+            alignments = AlignIO.read(StringIO(aln_text), "clustal")
+            st.text("✅ Alignment block IDs returned:")
+            st.code("\n".join([rec.id for rec in alignments]))
+            st.text_area("Raw ClustalO Output Start", "\n".join(aln_text.splitlines()[:20]), height=300)
         except Exception as e:
             tb = traceback.format_exc()
             st.error(f"❌ Clustal alignment parsing failed: Unknown parsing failure (possibly due to malformed alignment or unexpected sequence ID truncation).\n{tb}")
