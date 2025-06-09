@@ -273,7 +273,7 @@ if uploaded_file:
 
         try:
             alignment_blocks = list(AlignIO.parse(StringIO(aln_text), "clustal"))
-            if not alignment_blocks or len(alignment_blocks[0]) < 2:
+        if not alignment_blocks or len(alignment_blocks[0]) < 2:
             raise ValueError("Parsed alignment does not contain enough sequences.")
             alignment = alignment_blocks[0]
 except Exception as e:
