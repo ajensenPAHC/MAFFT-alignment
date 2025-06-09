@@ -271,16 +271,22 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
+        import traceback
         try:
-            alignment_blocks = list(AlignIO.parse(StringIO(aln_text), "clustal"))
-            st.text("✅ Alignment block IDs returned:")
-            st.code("\n".join([rec.id for rec in alignment]))
-            if not alignment_blocks or len(alignment_blocks[0]) < 2:
-                raise ValueError("Parsed alignment does not contain enough sequences.")
-            alignment = alignment_blocks[0]
+            with as_handle(StringIO(aln_text), "r") as handle:
+                alignment_blocks = list(AlignIO.parse(handle, "clustal"))
+                if not alignment_blocks or len(alignment_blocks[0]) < 2:
+                    raise ValueError("Parsed alignment does not contain enough sequences.")
+                alignment = alignment_blocks[0]
+                st.text("✅ Alignment block IDs returned:")
+                st.code("
+".join([rec.id for rec in alignment]))
+                st.text_area("Raw ClustalO Output Start", "
+".join(aln_text.splitlines()[:20]), height=300)
         except Exception as e:
-            msg = str(e).strip() or "Unknown parsing failure (possibly due to malformed alignment or unexpected sequence ID truncation)."
-            st.error(f"❌ Clustal alignment parsing failed: {msg}")
+            tb = traceback.format_exc()
+            st.error(f"❌ Clustal alignment parsing failed:
+{tb}")
             st.text_area("Raw Output", aln_text, height=300)
             st.stop()
 
