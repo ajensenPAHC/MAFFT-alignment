@@ -282,13 +282,14 @@ if uploaded_file:
             st.text_area("Raw Output", aln_text, height=300)
             st.stop()
 
-        ref_trunc = ref_record.id[:30]
-        try:
-            ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
-            ref_map = map_ref_positions(ref_aligned_seq)
-        except IndexError:
-            st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
+        # Try fuzzy match for the reference ID
+        ref_candidates = [r for r in alignment if ref_record.id.startswith(r.id) or r.id.startswith(ref_record.id)]
+        if not ref_candidates:
+            st.error(f"❌ Reference sequence ID '{ref_record.id}' not matched in Clustal Omega output. Found IDs: {[r.id for r in alignment]}")
             st.stop()
+
+        ref_aligned_seq = str(ref_candidates[0].seq)
+        ref_map = map_ref_positions(ref_aligned_seq)
 
         data = {
             "Name": [ref_record.id],
