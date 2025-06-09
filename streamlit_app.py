@@ -274,7 +274,8 @@ if uploaded_file:
         try:
             alignment_blocks = list(AlignIO.parse(StringIO(aln_text), "clustal"))
             st.text("✅ Alignment block IDs returned:")
-            st.code("\n".join([rec.id for rec in alignment_blocks[0]]))
+            st.code("
+".join([rec.id for rec in alignment_blocks[0]]))
             if not alignment_blocks or len(alignment_blocks[0]) < 2:
                 raise ValueError("Parsed alignment does not contain enough sequences.")
             alignment = alignment_blocks[0]
@@ -306,7 +307,7 @@ if uploaded_file:
             data[f"AA @ Pos {pos} (MSA:{align_idx+1 if align_idx is not None else 'N/A'})"] = [ref_aa]
 
         for record in alignment:
-            if record.id == ref_trunc:
+            if record.id == ref_candidates[0].id:
                 continue
             msa_id = compute_gapped_identity(ref_aligned_seq, str(record.seq))
             row = {
