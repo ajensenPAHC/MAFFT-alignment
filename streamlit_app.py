@@ -279,14 +279,11 @@ if uploaded_file:
                     raise ValueError("Parsed alignment does not contain enough sequences.")
                 alignment = alignment_blocks[0]
                 st.text("✅ Alignment block IDs returned:")
-                st.code("
-".join([rec.id for rec in alignment]))
-                st.text_area("Raw ClustalO Output Start", "
-".join(aln_text.splitlines()[:20]), height=300)
+                st.code("\n".join([rec.id for rec in alignment]))
+                st.text_area("Raw ClustalO Output Start", "\n".join(aln_text.splitlines()[:20]), height=300)
         except Exception as e:
             tb = traceback.format_exc()
-            st.error(f"❌ Clustal alignment parsing failed: Unknown parsing failure (possibly due to malformed alignment or unexpected sequence ID truncation).
-{tb}")
+            st.error(f"❌ Clustal alignment parsing failed: Unknown parsing failure (possibly due to malformed alignment or unexpected sequence ID truncation).\n{tb}")
             st.text_area("Raw Output", aln_text, height=300)
             st.stop()
 
