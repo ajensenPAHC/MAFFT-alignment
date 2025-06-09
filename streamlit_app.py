@@ -271,7 +271,15 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
-        alignment = AlignIO.read(StringIO(aln_text), "clustal")
+        try:
+            alignment_blocks = list(AlignIO.parse(StringIO(aln_text), "clustal"))
+            if not alignment_blocks or len(alignment_blocks[0]) < 2:
+                raise ValueError("Parsed alignment does not contain enough sequences.")
+            alignment = alignment_blocks[0]
+        except Exception as e:
+            st.error(f"❌ Clustal alignment parsing failed: {e}")
+            st.text_area("Raw Output", aln_text, height=300)
+            st.stop()
 
         ref_trunc = ref_record.id[:30]
         try:
