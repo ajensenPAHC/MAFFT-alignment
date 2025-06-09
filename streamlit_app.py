@@ -175,7 +175,7 @@ if uploaded_file:
             selected_rows = list(range(row_range[0], row_range[1] + 1))
         except Exception as e:
             st.error(f"Row range selection failed: {e}")
-            st.stop()
+                        st.stop()
     else:
         selected_rows_input = st.text_input("Enter specific rows or ranges (e.g., 2,4-6,8)", "2,3,4")
         selected_rows = parse_rows_input(selected_rows_input)
@@ -274,13 +274,12 @@ if uploaded_file:
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_trunc = ref_record.id[:30]
-try:
+        try:
     ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
     ref_map = map_ref_positions(ref_aligned_seq)
-except IndexError:
-    st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
+        except IndexError:
+                st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
     st.stop()
-        ref_map = map_ref_positions(ref_aligned_seq)
 
         data = {
             "Name": [ref_record.id],
