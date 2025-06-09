@@ -285,7 +285,7 @@ if uploaded_file:
 ".join(aln_text.splitlines()[:20]), height=300)
         except Exception as e:
             tb = traceback.format_exc()
-            st.error(f"❌ Clustal alignment parsing failed:
+            st.error(f"❌ Clustal alignment parsing failed: Unknown parsing failure (possibly due to malformed alignment or unexpected sequence ID truncation).
 {tb}")
             st.text_area("Raw Output", aln_text, height=300)
             st.stop()
