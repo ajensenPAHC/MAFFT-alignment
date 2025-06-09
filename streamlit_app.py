@@ -274,12 +274,13 @@ if uploaded_file:
         alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_trunc = ref_record.id[:30]
-        try:
-            ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
-            ref_map = map_ref_positions(ref_aligned_seq)
-        except IndexError:
-            st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
-            st.stop()
+try:
+    ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
+    ref_map = map_ref_positions(ref_aligned_seq)
+except IndexError:
+    st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
+    st.stop()
+        ref_map = map_ref_positions(ref_aligned_seq)
 
         data = {
             "Name": [ref_record.id],
