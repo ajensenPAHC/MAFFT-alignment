@@ -271,23 +271,15 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
-        try:
-            alignment_blocks = list(AlignIO.parse(StringIO(aln_text), "clustal"))
-        if not alignment_blocks or len(alignment_blocks[0]) < 2:
-            raise ValueError("Parsed alignment does not contain enough sequences.")
-            alignment = alignment_blocks[0]
-except Exception as e:
-    st.error(f"❌ Clustal alignment parsing failed: {e}")
-    st.text_area("Raw Output", aln_text, height=300)
-    st.stop()
+        alignment = AlignIO.read(StringIO(aln_text), "clustal")
 
         ref_trunc = ref_record.id[:30]
         try:
-    ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
-    ref_map = map_ref_positions(ref_aligned_seq)
+            ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
+            ref_map = map_ref_positions(ref_aligned_seq)
         except IndexError:
-                st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
-    st.stop()
+            st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
+            st.stop()
 
         data = {
             "Name": [ref_record.id],
