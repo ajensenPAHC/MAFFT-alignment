@@ -274,8 +274,7 @@ if uploaded_file:
         try:
             alignment_blocks = list(AlignIO.parse(StringIO(aln_text), "clustal"))
             st.text("✅ Alignment block IDs returned:")
-            st.code("
-".join([rec.id for rec in alignment_blocks[0]]))
+            st.code("\n".join([rec.id for rec in alignment]))
             if not alignment_blocks or len(alignment_blocks[0]) < 2:
                 raise ValueError("Parsed alignment does not contain enough sequences.")
             alignment = alignment_blocks[0]
