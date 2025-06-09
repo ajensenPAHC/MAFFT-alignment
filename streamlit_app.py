@@ -175,7 +175,7 @@ if uploaded_file:
             selected_rows = list(range(row_range[0], row_range[1] + 1))
         except Exception as e:
             st.error(f"Row range selection failed: {e}")
-            st.stop()
+                        st.stop()
     else:
         selected_rows_input = st.text_input("Enter specific rows or ranges (e.g., 2,4-6,8)", "2,3,4")
         selected_rows = parse_rows_input(selected_rows_input)
@@ -271,15 +271,23 @@ if uploaded_file:
         st.subheader("🔌 Clustal Omega Alignment Preview")
         st.code(aln_text, language="text")
 
-        alignment = AlignIO.read(StringIO(aln_text), "clustal")
+        try:
+    alignment_blocks = list(AlignIO.parse(StringIO(aln_text), "clustal"))
+    if not alignment_blocks or len(alignment_blocks[0]) < 2:
+        raise ValueError("Parsed alignment does not contain enough sequences.")
+    alignment = alignment_blocks[0]
+except Exception as e:
+    st.error(f"❌ Clustal alignment parsing failed: {e}")
+    st.text_area("Raw Output", aln_text, height=300)
+    st.stop()
 
         ref_trunc = ref_record.id[:30]
         try:
-            ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
-            ref_map = map_ref_positions(ref_aligned_seq)
+    ref_aligned_seq = str([r.seq for r in alignment if r.id == ref_trunc][0])
+    ref_map = map_ref_positions(ref_aligned_seq)
         except IndexError:
-            st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
-            st.stop()
+                st.error(f"❌ Reference ID '{ref_trunc}' not found in alignment results. It may have been truncated or altered by Clustal Omega. Try using shorter sequence names.")
+    st.stop()
 
         data = {
             "Name": [ref_record.id],
