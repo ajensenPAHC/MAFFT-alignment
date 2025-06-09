@@ -277,7 +277,8 @@ if uploaded_file:
                 raise ValueError("Parsed alignment does not contain enough sequences.")
             alignment = alignment_blocks[0]
         except Exception as e:
-            st.error(f"❌ Clustal alignment parsing failed: {e}")
+            msg = str(e).strip() or "Unknown parsing failure (possibly due to malformed alignment or unexpected sequence ID truncation)."
+            st.error(f"❌ Clustal alignment parsing failed: {msg}")
             st.text_area("Raw Output", aln_text, height=300)
             st.stop()
 
